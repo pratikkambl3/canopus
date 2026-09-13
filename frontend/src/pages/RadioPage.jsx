@@ -9,21 +9,22 @@ export default function RadioPage() {
   const { state, actions } = useAudio();
   const { isPlaying, liveRadioEnabled, tracks, currentTrackId } = state;
 
-  // Load all tracks from all records on first visit
+  // Load all tracks from all records into radio pool
   useEffect(() => {
-    if (state.tracks.length > 0) return;
     getRecords().then(records => {
-      // Flatten all tracks; use album artworkUrl as fallback for tracks without their own image
+      // Flatten all tracks; attach artist and album artwork fallback
       const allTracks = records.flatMap(r =>
         (r.tracks || []).map(t => ({
           ...t,
+          artist: t.artist || r.artist || '',
+          albumTitle: r.title,
           // Per-track artwork → album artwork → null
           artworkUrl: t.artworkUrl || r.artworkUrl || null,
           // Attach genre from the parent record for the player card metadata
           genre: t.genre || r.genre || '',
         }))
       );
-      actions.loadTracks(allTracks);
+      actions.loadRadioPool(allTracks);
     }).catch(console.error);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

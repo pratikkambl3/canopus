@@ -68,13 +68,20 @@ export default function RadioPlayer() {
           <p className="player-card__track-title">
             {currentTrack?.title ?? 'Select a record'}
           </p>
+          {currentTrack?.artist && (
+            <p className="player-card__artist" style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 4px', fontWeight: 500 }}>
+              {currentTrack.artist}
+            </p>
+          )}
           <p className="player-card__version">
-            {currentTrack?.version ?? 'CANOPUS'}
+            {currentTrack?.version || currentTrack?.albumTitle || 'CANOPUS'}
           </p>
           {currentTrack && (
             <div className="player-card__meta">
-              <span className="player-card__meta-tag">{currentTrack.genre}</span>
-              <span className="player-card__meta-tag">{currentTrack.bpm} BPM</span>
+              {currentTrack.genre && <span className="player-card__meta-tag">{currentTrack.genre}</span>}
+              {currentTrack.bpm && Number(currentTrack.bpm) > 0 ? (
+                <span className="player-card__meta-tag">{currentTrack.bpm} BPM</span>
+              ) : null}
             </div>
           )}
         </div>
@@ -134,7 +141,15 @@ export default function RadioPlayer() {
 
           <button
             className="player-card__play-btn"
-            onClick={actions.togglePlay}
+            onClick={() => {
+              if (isPlaying) {
+                actions.togglePlay();
+              } else if (!state.currentTrackId || !state.liveRadioEnabled) {
+                actions.startLiveRadio();
+              } else {
+                actions.togglePlay();
+              }
+            }}
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <IconPause /> : <IconPlay />}

@@ -298,11 +298,11 @@ export default function RecordDetailsOverlay({ record, onClose }) {
                         {/* Title + subtitle */}
                         <div className="track-row__info">
                           <p className="track-row__title">{track.title}</p>
-                          {(track.originalTitle || track.version || track.bpm > 0) && (
+                          {(track.originalTitle || track.version || (track.bpm && Number(track.bpm) > 0)) && (
                             <p className="track-row__sub">
                               {[
                                 track.originalTitle || track.version,
-                                track.bpm > 0 ? `${track.bpm} BPM` : null,
+                                (track.bpm && Number(track.bpm) > 0) ? `${track.bpm} BPM` : null,
                                 track.key,
                               ].filter(Boolean).join(' · ')}
                             </p>

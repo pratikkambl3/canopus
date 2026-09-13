@@ -41,9 +41,26 @@ const uploadZip = multer({
 });
 
 /**
+ * Helper to fetch configured preview duration (admin DB setting > env var > 30)
+ */
+async function getPreviewDuration() {
+  try {
+    const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'preview_duration_seconds'");
+    if (rows.length && rows[0].value) {
+      const val = parseInt(rows[0].value, 10);
+      if (!isNaN(val) && val > 0) return val;
+    }
+  } catch (err) {
+    console.warn('[products] Could not read preview_duration_seconds setting:', err.message);
+  }
+  const envVal = parseInt(process.env.PREVIEW_DURATION_SECONDS || '30', 10);
+  return !isNaN(envVal) && envVal > 0 ? envVal : 30;
+}
+
+/**
  * Maps DB row to frontend product format
  */
-function rowToProduct(r, tracks = []) {
+function rowToProduct(r, tracks = [], previewDuration = 30) {
   const hasZip = Boolean(r.digital_file_path && fs.existsSync(r.digital_file_path));
 
   return {
@@ -60,6 +77,7 @@ function rowToProduct(r, tracks = []) {
     productEnabled:     Boolean(r.product_enabled),
     price:              Number(r.product_price || 0),
     productDescription: r.product_description || r.description || '',
+    previewDuration:    previewDuration,
     // Digital ZIP metadata (safe, no full system paths exposed)
     digitalFile: {
       exists:   hasZip,
@@ -73,9 +91,9 @@ function rowToProduct(r, tracks = []) {
       title:        t.title,
       originalTitle: t.original_title,
       version:      t.version,
-      bpm:          t.bpm,
+      bpm:          (t.bpm && Number(t.bpm) > 0) ? Number(t.bpm) : null,
       key:          t.key,
-      audioUrl:     t.audio_url,
+      previewUrl:   `/api/products/${r.id}/preview?trackId=${t.id}`,
       artworkUrl:   t.artwork_url || r.artwork_url || null,
       trackNumber:  t.track_number,
       duration:     t.duration || null,
@@ -83,9 +101,43 @@ function rowToProduct(r, tracks = []) {
   };
 }
 
+/* ── GET /api/products/settings/preview — public ── */
+router.get('/settings/preview', async (_req, res) => {
+  try {
+    const previewDuration = await getPreviewDuration();
+    res.json({ previewDuration, previewDurationSeconds: previewDuration });
+  } catch (err) {
+    console.error('[products] GET /settings/preview error:', err);
+    res.status(500).json({ error: 'Failed to fetch preview settings.' });
+  }
+});
+
+/* ── PUT /api/products/settings/preview — protected (admin) ── */
+router.put('/settings/preview', authenticate, async (req, res) => {
+  try {
+    const rawVal = parseInt(req.body.previewDuration || req.body.previewDurationSeconds, 10);
+    if (isNaN(rawVal) || rawVal < 5 || rawVal > 180) {
+      return res.status(400).json({ error: 'Preview duration must be between 5 and 180 seconds.' });
+    }
+
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES ('preview_duration_seconds', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [String(rawVal)]
+    );
+
+    res.json({ success: true, previewDuration: rawVal, previewDurationSeconds: rawVal });
+  } catch (err) {
+    console.error('[products] PUT /settings/preview error:', err);
+    res.status(500).json({ error: 'Failed to update preview duration.' });
+  }
+});
+
 /* ── GET /api/products — public (active products for store) ── */
 router.get('/', async (req, res) => {
   try {
+    const previewDuration = await getPreviewDuration();
     const { rows: records } = await pool.query(
       `SELECT * FROM records 
        WHERE product_enabled = TRUE 
@@ -102,7 +154,7 @@ router.get('/', async (req, res) => {
       tracksByRecord[t.record_id].push(t);
     }
 
-    const products = records.map(r => rowToProduct(r, tracksByRecord[r.id] || []));
+    const products = records.map(r => rowToProduct(r, tracksByRecord[r.id] || [], previewDuration));
     res.json(products);
   } catch (err) {
     console.error('[products] GET / error:', err);
@@ -113,6 +165,7 @@ router.get('/', async (req, res) => {
 /* ── GET /api/products/:id — public ── */
 router.get('/:id', async (req, res) => {
   try {
+    const previewDuration = await getPreviewDuration();
     const { rows } = await pool.query('SELECT * FROM records WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Product not found.' });
 
@@ -121,10 +174,114 @@ router.get('/:id', async (req, res) => {
       [req.params.id]
     );
 
-    res.json(rowToProduct(rows[0], trackRows.rows));
+    res.json(rowToProduct(rows[0], trackRows.rows, previewDuration));
   } catch (err) {
     console.error('[products] GET /:id error:', err);
     res.status(500).json({ error: 'Failed to fetch product.' });
+  }
+});
+
+/* ── GET /api/products/:id/preview — public (limited audio preview streaming) ── */
+router.get('/:id/preview', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { trackId } = req.query;
+
+    const { rows: records } = await pool.query('SELECT * FROM records WHERE id = $1', [id]);
+    if (!records.length) return res.status(404).json({ error: 'Record not found.' });
+
+    // Find requested track or default to first track
+    let trackQuery = 'SELECT * FROM tracks WHERE record_id = $1';
+    const params = [id];
+    if (trackId) {
+      trackQuery += ' AND id = $2';
+      params.push(trackId);
+    } else {
+      trackQuery += ' ORDER BY track_number ASC LIMIT 1';
+    }
+
+    const { rows: tracks } = await pool.query(trackQuery, params);
+    if (!tracks.length || !tracks[0].audio_url) {
+      return res.status(404).json({ error: 'No preview audio available.' });
+    }
+
+    const track = tracks[0];
+    const previewDuration = await getPreviewDuration();
+
+    // Locate file on disk
+    const audioUrl = track.audio_url;
+    let filePath;
+    if (audioUrl.startsWith('/uploads/audio/')) {
+      const filename = path.basename(audioUrl);
+      filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', 'audio', filename);
+    } else if (audioUrl.startsWith('/uploads/')) {
+      filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', audioUrl.replace('/uploads/', ''));
+    } else {
+      const filename = path.basename(audioUrl);
+      filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', 'audio', filename);
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Audio file not found on server.' });
+    }
+
+    const stat = fs.statSync(filePath);
+    const totalSize = stat.size;
+
+    // Estimate byte limit for preview duration
+    // Standard high-quality MP3 (320kbps) is ~40 KB/s; 128kbps is ~16 KB/s
+    // Cap strictly so unauthenticated users cannot download beyond the preview window
+    const previewLimit = Math.min(totalSize, Math.max(256 * 1024, previewDuration * 42 * 1024));
+
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg',
+      '.m4a': 'audio/mp4',
+      '.flac': 'audio/flac',
+      '.aac': 'audio/aac',
+    };
+    const contentType = mimeTypes[ext] || 'audio/mpeg';
+
+    const range = req.headers.range;
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10) || 0;
+      let end = parts[1] ? parseInt(parts[1], 10) : previewLimit - 1;
+
+      if (start >= previewLimit) {
+        res.status(416).set('Content-Range', `bytes */${previewLimit}`).end();
+        return;
+      }
+
+      if (end >= previewLimit) {
+        end = previewLimit - 1;
+      }
+
+      const chunkSize = (end - start) + 1;
+      const fileStream = fs.createReadStream(filePath, { start, end });
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${previewLimit}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': contentType,
+        'Cache-Control': 'no-store, must-revalidate',
+      });
+      fileStream.pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': previewLimit,
+        'Content-Type': contentType,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-store, must-revalidate',
+      });
+      fs.createReadStream(filePath, { start: 0, end: previewLimit - 1 }).pipe(res);
+    }
+  } catch (err) {
+    console.error('[products] GET /:id/preview error:', err);
+    res.status(500).json({ error: 'Failed to stream audio preview.' });
   }
 });
 

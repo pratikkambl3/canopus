@@ -23,6 +23,8 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS records (
       id                    TEXT        PRIMARY KEY,
       title                 TEXT        NOT NULL,
+      artist                TEXT        DEFAULT '',
+      description           TEXT        DEFAULT '',
       genre                 TEXT        DEFAULT 'Experimental',
       release_date          DATE,
       featured              BOOLEAN     DEFAULT FALSE,
@@ -44,6 +46,8 @@ async function initDb() {
 
   // Idempotent migrations for existing deployments of records table
   await pool.query(`
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS artist TEXT DEFAULT '';
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
     ALTER TABLE records ADD COLUMN IF NOT EXISTS product_enabled BOOLEAN DEFAULT FALSE;
     ALTER TABLE records ADD COLUMN IF NOT EXISTS product_price NUMERIC(10, 2) DEFAULT 0.00;
     ALTER TABLE records ADD COLUMN IF NOT EXISTS product_description TEXT DEFAULT '';
@@ -64,7 +68,7 @@ async function initDb() {
       title         TEXT        NOT NULL,
       original_title TEXT       DEFAULT '',
       version       TEXT        DEFAULT '',
-      bpm           INTEGER     DEFAULT 0,
+      bpm           INTEGER     DEFAULT NULL,
       key           TEXT        DEFAULT '',
       audio_url     TEXT        DEFAULT '',
       artwork_url   TEXT        DEFAULT '',
@@ -76,9 +80,41 @@ async function initDb() {
 
   await pool.query(`
     ALTER TABLE tracks ADD COLUMN IF NOT EXISTS artwork_url TEXT DEFAULT '';
+    ALTER TABLE tracks ALTER COLUMN bpm DROP DEFAULT;
+    UPDATE tracks SET bpm = NULL WHERE bpm = 0;
   `);
 
-  // 3. Orders table (Customer purchases)
+  // 3. App Settings table (Configurable settings like preview duration)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key         TEXT        PRIMARY KEY,
+      value       TEXT        NOT NULL,
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    INSERT INTO app_settings (key, value)
+    VALUES ('preview_duration_seconds', '30')
+    ON CONFLICT (key) DO NOTHING;
+  `);
+
+  // 4. Support Queries table (Customer inquiries & issues)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_queries (
+      id            TEXT        PRIMARY KEY,
+      name          TEXT        NOT NULL,
+      email         TEXT        NOT NULL,
+      phone         TEXT        DEFAULT '',
+      subject       TEXT        NOT NULL,
+      message       TEXT        NOT NULL,
+      status        TEXT        DEFAULT 'Open',
+      created_at    TIMESTAMPTZ DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_support_queries_created_at ON support_queries(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_support_queries_status ON support_queries(status);
+  `);
+
+  // 5. Orders table (Customer purchases)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id                    TEXT        PRIMARY KEY,

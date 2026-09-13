@@ -10,6 +10,7 @@ import ProductDetailsPage from './pages/ProductDetailsPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrderConfirmationPage from './pages/OrderConfirmationPage';
 import AboutPage from './pages/AboutPage';
+import SupportPage from './pages/SupportPage';
 import AdminPage from './pages/AdminPage';
 
 export default function App() {
@@ -36,9 +37,11 @@ function AppInner() {
         <Route path="/checkout"                    element={<CheckoutPage />} />
         <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
         <Route path="/about"                       element={<AboutPage />} />
+        <Route path="/support"                     element={<SupportPage />} />
         <Route path="/admin"                       element={<AdminPage />} />
         <Route path="*"                            element={<RadioPage />} />
       </Routes>
     </>
   );
 }
+

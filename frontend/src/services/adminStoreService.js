@@ -119,3 +119,27 @@ export async function resendOrderEmail(id) {
   });
   return handleResponse(res);
 }
+
+/**
+ * Fetch global preview duration settings
+ */
+export async function getPreviewSettings() {
+  const res = await fetch(`${API_BASE}/products/settings/preview`);
+  return handleResponse(res);
+}
+
+/**
+ * Update global preview duration settings
+ */
+export async function updatePreviewSettings(previewDurationSeconds) {
+  const res = await fetch(`${API_BASE}/products/settings/preview`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ previewDurationSeconds }),
+  });
+  return handleResponse(res);
+}
+

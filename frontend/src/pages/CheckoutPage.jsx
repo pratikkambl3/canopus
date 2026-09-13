@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { createOrder } from '../services/storeService';
-import { IconCopy, IconCheck, IconQrCode } from '../components/shared/Icons';
+import { IconCopy, IconCheck, IconDownload } from '../components/shared/Icons';
 
 export default function CheckoutPage() {
   const { cartItems, cartTotal, clearCart, refreshCartPrices } = useCart();
@@ -27,10 +27,26 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState(null);
   const [copied, setCopied]         = useState(false);
+  const [isMobile, setIsMobile]     = useState(false);
+
+  // Detect mobile device for UPI intent
+  useEffect(() => {
+    const checkMobile = () => {
+      const ua = navigator.userAgent || '';
+      setIsMobile(/Android|iPhone|iPad|iPod|Windows Phone/i.test(ua) || window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // UPI configuration
   const upiId = import.meta.env.VITE_PAYMENT_UPI_ID || 'pratik.kamble11@ybl';
+  const payeeName = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Pratik Prakash Kamble';
   const qrImageUrl = import.meta.env.VITE_PAYMENT_QR_IMAGE_URL || '/payment-qr.png';
+  const downloadQrUrl = `${import.meta.env.VITE_API_URL || '/api'}/orders/payment-qr/download`;
+  const upiDeepLink = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(cartTotal)}&cu=INR&tn=${encodeURIComponent('CANOPUS Order')}`;
+
 
   if (cartItems.length === 0) {
     return (
@@ -207,10 +223,36 @@ export default function CheckoutPage() {
                 <span className="checkout-payment__amount">₹{cartTotal}</span>
               </div>
 
-              <div className="checkout-payment__qr-card">
-                <p className="checkout-payment__qr-instruction">
-                  Scan the QR code with any UPI app (GPay, PhonePe, Paytm):
+              {/* Mobile Quick Pay Intent */}
+              <div className="checkout-payment__quick-actions">
+                <a
+                  href={upiDeepLink}
+                  className="btn-primary checkout-payment__upi-app-btn"
+                  id="pay-with-upi-app-btn"
+                >
+                  ⚡ Open in UPI App (GPay / PhonePe / Paytm)
+                </a>
+                <p className="checkout-payment__upi-hint">
+                  {isMobile
+                    ? 'Tap above to launch your UPI app with payee and amount pre-filled.'
+                    : 'On mobile, this opens your UPI app directly. On desktop, please scan the QR code below.'}
                 </p>
+              </div>
+
+              <div className="checkout-payment__qr-card">
+                <div className="checkout-payment__qr-card-header">
+                  <p className="checkout-payment__qr-instruction">
+                    Or scan this QR code with any UPI app:
+                  </p>
+                  <a
+                    href={downloadQrUrl}
+                    download="payment-qr.png"
+                    className="btn-secondary checkout-payment__download-qr-link"
+                    id="download-qr-btn"
+                  >
+                    <IconDownload /> Download QR
+                  </a>
+                </div>
 
                 {/* QR Code Container */}
                 <div className="checkout-payment__qr-wrap">
@@ -237,6 +279,11 @@ export default function CheckoutPage() {
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
+              </div>
+
+              <div className="checkout-payment__warning-callout" role="note">
+                <strong>Important:</strong> Completing payment in your UPI app does not automatically finish your order.
+                You must enter the <strong>12-digit UPI UTR / Reference ID</strong> below so our team can verify and dispatch your download link.
               </div>
 
               {/* UTR Input & Submit */}

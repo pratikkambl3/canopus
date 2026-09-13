@@ -183,6 +183,11 @@ function RecordCard({ record, onClick, onPlayRecord, isPlayingThisRecord }) {
           {record.artist && (
             <p className="record-card__artist">{record.artist}</p>
           )}
+          {record.description && (
+            <p className="record-card__desc" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>
+              {record.description}
+            </p>
+          )}
           <p className="record-card__meta">
             {[record.genre, releaseYear, trackCount > 0 ? `${trackCount} tracks` : null]
               .filter(Boolean)

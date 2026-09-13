@@ -21,21 +21,28 @@ function shuffleArray(arr) {
 }
 
 function buildQueue(tracks, currentId, shuffleEnabled) {
-  const ids = tracks.map(t => t.id);
+  const ids = tracks.filter(t => t && t.audioUrl).map(t => t.id);
   if (!shuffleEnabled) return ids;
   const others = ids.filter(id => id !== currentId);
   return [currentId, ...shuffleArray(others)];
 }
 
 function generateLiveRadioQueue(tracks, lastTrackId) {
-  const ids = tracks.map(t => t.id);
+  const valid = tracks.filter(t => t && t.audioUrl);
+  const ids = valid.map(t => t.id);
   if (ids.length <= 1) return ids;
-  
+
   let newQueue;
+  let attempts = 0;
   do {
     newQueue = shuffleArray(ids);
-  } while (newQueue[0] === lastTrackId);
-  
+    attempts++;
+  } while (newQueue[0] === lastTrackId && attempts < 10);
+
+  if (newQueue[0] === lastTrackId && newQueue.length > 1) {
+    [newQueue[0], newQueue[newQueue.length - 1]] = [newQueue[newQueue.length - 1], newQueue[0]];
+  }
+
   return newQueue;
 }
 
@@ -43,6 +50,7 @@ function generateLiveRadioQueue(tracks, lastTrackId) {
 
 const initialState = {
   tracks: [],
+  radioTracks: [],
   currentTrackId: null,
   isPlaying: false,
   currentTime: 0,
@@ -61,6 +69,35 @@ const initialState = {
 function reducer(state, action) {
   switch (action.type) {
 
+    case 'LOAD_RADIO_POOL': {
+      const allTracks = action.payload || [];
+      const validTracks = allTracks.filter(t => t && t.audioUrl);
+      const radioTracks = validTracks.length ? validTracks : allTracks;
+
+      // If active tracks are empty or live radio is active, initialize active playlist from radio pool
+      if (!state.tracks.length || state.liveRadioEnabled) {
+        const queue = generateLiveRadioQueue(radioTracks, state.currentTrackId);
+        const currentTrackId = state.currentTrackId && radioTracks.some(t => t.id === state.currentTrackId)
+          ? state.currentTrackId
+          : (queue[0] || null);
+        const queueIndex = Math.max(0, queue.indexOf(currentTrackId));
+        return {
+          ...state,
+          radioTracks,
+          tracks: radioTracks,
+          queue,
+          queueIndex,
+          currentTrackId,
+          error: null,
+        };
+      }
+
+      return {
+        ...state,
+        radioTracks,
+      };
+    }
+
     case 'LOAD_TRACKS': {
       const tracks = action.payload;
       if (!tracks.length) return { ...state, tracks, error: null };
@@ -69,14 +106,16 @@ function reducer(state, action) {
         ? state.currentTrackId
         : queue[0];
       const queueIndex = Math.max(0, queue.indexOf(currentTrackId));
-      return { ...state, tracks, queue, queueIndex, currentTrackId, error: null };
+      return { ...state, tracks, queue, queueIndex, currentTrackId, error: null, liveRadioEnabled: false };
     }
 
     case 'START_LIVE_RADIO': {
-      if (!state.tracks.length) return state;
-      const queue = generateLiveRadioQueue(state.tracks, state.currentTrackId);
+      const pool = (state.radioTracks.length ? state.radioTracks : state.tracks).filter(t => t && t.audioUrl);
+      if (!pool.length) return state;
+      const queue = generateLiveRadioQueue(pool, state.currentTrackId);
       return {
         ...state,
+        tracks: pool,
         liveRadioEnabled: true,
         shuffleEnabled: true,
         queue,
@@ -94,8 +133,8 @@ function reducer(state, action) {
       let queue;
       let queueIndex;
       if (state.liveRadioEnabled) {
-        // Keep live radio on, start playing this track, queue rest behind it
-        const others = state.tracks.map(t => t.id).filter(tId => tId !== id);
+        const pool = state.radioTracks.length ? state.radioTracks : state.tracks;
+        const others = pool.filter(t => t.audioUrl).map(t => t.id).filter(tId => tId !== id);
         queue = [id, ...shuffleArray(others)];
         queueIndex = 0;
       } else {
@@ -106,7 +145,6 @@ function reducer(state, action) {
         ...state,
         currentTrackId: id,
         isPlaying: true,
-        liveRadioEnabled: false,
         queue,
         queueIndex,
         currentTime: 0,
@@ -122,17 +160,24 @@ function reducer(state, action) {
       return { ...state, isPlaying: false };
 
     case 'TOGGLE_PLAY': {
-      if (!state.isPlaying && !state.currentTrackId && state.tracks.length) {
-        // Start from first track
-        const id = state.queue[0] || state.tracks[0].id;
-        return {
-          ...state,
-          currentTrackId: id,
-          isPlaying: true,
-          currentTime: 0,
-          duration: 0,
-          error: null,
-        };
+      if (!state.isPlaying && !state.currentTrackId) {
+        const pool = (state.radioTracks.length ? state.radioTracks : state.tracks).filter(t => t && t.audioUrl);
+        if (pool.length) {
+          const queue = generateLiveRadioQueue(pool, null);
+          return {
+            ...state,
+            tracks: pool,
+            liveRadioEnabled: true,
+            shuffleEnabled: true,
+            queue,
+            queueIndex: 0,
+            currentTrackId: queue[0],
+            isPlaying: true,
+            currentTime: 0,
+            duration: 0,
+            error: null,
+          };
+        }
       }
       return {
         ...state,
@@ -154,35 +199,42 @@ function reducer(state, action) {
       return { ...state, isMuted: !state.isMuted };
 
     case 'TOGGLE_SHUFFLE': {
+      const pool = state.liveRadioEnabled && state.radioTracks.length ? state.radioTracks : state.tracks;
       const shuffleEnabled = !state.shuffleEnabled;
-      const queue = buildQueue(state.tracks, state.currentTrackId, shuffleEnabled);
+      const queue = buildQueue(pool, state.currentTrackId, shuffleEnabled);
       const queueIndex = Math.max(0, queue.indexOf(state.currentTrackId));
       return { ...state, shuffleEnabled, queue, queueIndex };
     }
 
     case 'NEXT': {
-      if (!state.queue.length) return state;
-      let nextIndex = state.queueIndex + 1;
-      let queue = state.queue;
+      const pool = (state.liveRadioEnabled && state.radioTracks.length ? state.radioTracks : state.tracks).filter(t => t && t.audioUrl);
+      if (!pool.length) return state;
 
-      if (nextIndex >= queue.length) {
-        // End of queue
-        if (state.liveRadioEnabled) {
-          queue = generateLiveRadioQueue(state.tracks, state.currentTrackId);
-          nextIndex = 0;
-        } else if (state.shuffleEnabled) {
-          queue = shuffleArray(state.tracks.map(t => t.id));
-          nextIndex = 0;
-        } else {
-          nextIndex = 0;
+      let queue = state.queue;
+      let nextIndex = state.queueIndex + 1;
+
+      if (nextIndex >= queue.length || !queue.length) {
+        // End of queue: regenerate randomized queue
+        queue = generateLiveRadioQueue(pool, state.currentTrackId);
+        nextIndex = 0;
+      }
+
+      let nextId = queue[nextIndex];
+      // Ensure we don't repeat the same track if multiple are available
+      if (nextId === state.currentTrackId && pool.length > 1) {
+        const different = queue.filter(id => id !== state.currentTrackId);
+        if (different.length) {
+          nextId = different[0];
+          nextIndex = queue.indexOf(nextId);
         }
       }
 
       return {
         ...state,
+        tracks: pool,
         queue,
         queueIndex: nextIndex,
-        currentTrackId: queue[nextIndex],
+        currentTrackId: nextId,
         isPlaying: true,
         currentTime: 0,
         duration: 0,
@@ -192,7 +244,6 @@ function reducer(state, action) {
 
     case 'PREV': {
       if (!state.queue.length) return state;
-      // If > 5s played, go to start of current track (handled in action)
       const prevIndex = Math.max(0, state.queueIndex - 1);
       return {
         ...state,
@@ -272,7 +323,8 @@ export function AudioProvider({ children }) {
 
     if (trackChanged) {
       prevTrackIdRef.current = state.currentTrackId;
-      const track = state.tracks.find(t => t.id === state.currentTrackId);
+      const allPool = state.tracks.concat(state.radioTracks.filter(rt => !state.tracks.some(t => t.id === rt.id)));
+      const track = allPool.find(t => t.id === state.currentTrackId);
       if (track && track.audioUrl) {
         try {
           const targetUrl = new URL(track.audioUrl, window.location.href).href;
@@ -307,7 +359,7 @@ export function AudioProvider({ children }) {
     } else {
       audio.pause();
     }
-  }, [state.currentTrackId, state.isPlaying, state.tracks]);
+  }, [state.currentTrackId, state.isPlaying, state.tracks, state.radioTracks]);
 
   /* ── Sync volume / mute ── */
   useEffect(() => {
@@ -325,21 +377,25 @@ export function AudioProvider({ children }) {
     }
   }, [state.currentTime]);
 
-  /* ── Auto-skip on error for Live Radio ── */
+  /* ── Auto-skip on error (auto-advance so radio never stalls) ── */
   useEffect(() => {
-    if (state.error && state.liveRadioEnabled) {
+    if (state.error) {
       const timer = setTimeout(() => {
         dispatch({ type: 'NEXT' });
-      }, 3000); // Wait 3s so the user can see the error briefly
+      }, 2500);
       return () => clearTimeout(timer);
     }
-  }, [state.error, state.liveRadioEnabled]);
+  }, [state.error]);
 
   /* ── Actions ── */
 
   const actions = {
     loadTracks: useCallback((tracks) => {
       dispatch({ type: 'LOAD_TRACKS', payload: tracks });
+    }, []),
+
+    loadRadioPool: useCallback((tracks) => {
+      dispatch({ type: 'LOAD_RADIO_POOL', payload: tracks });
     }, []),
 
     selectTrack: useCallback((id) => {
@@ -393,7 +449,8 @@ export function AudioProvider({ children }) {
     }, []),
   };
 
-  const currentTrack = state.tracks.find(t => t.id === state.currentTrackId) ?? null;
+  const allPool = state.tracks.concat(state.radioTracks.filter(rt => !state.tracks.some(t => t.id === rt.id)));
+  const currentTrack = allPool.find(t => t.id === state.currentTrackId) ?? null;
 
   return (
     <AudioCtx.Provider value={{ state: { ...state, currentTrack }, actions }}>

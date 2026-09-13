@@ -67,6 +67,14 @@ export default function Header() {
           >
             About
           </NavLink>
+          <NavLink
+            to="/support"
+            className={({ isActive }) =>
+              `header__nav-link${isActive ? ' active' : ''}`
+            }
+          >
+            Support
+          </NavLink>
         </nav>
 
         {/* Right side: Cart + Status + Mobile menu */}
@@ -143,6 +151,13 @@ export default function Header() {
             onClick={() => setMenuOpen(false)}
           >
             About
+          </Link>
+          <Link
+            to="/support"
+            className="mobile-nav__link"
+            onClick={() => setMenuOpen(false)}
+          >
+            Support
           </Link>
         </div>
       )}

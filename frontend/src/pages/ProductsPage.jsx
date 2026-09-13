@@ -7,7 +7,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProducts } from '../services/storeService';
 import { useCart } from '../context/CartContext';
-import { IconCheck, IconBag } from '../components/shared/Icons';
+import { useAudio } from '../context/AudioContext';
+import { usePreviewPlayer } from '../hooks/usePreviewPlayer';
+import { IconCheck, IconBag, IconPlay, IconPause, formatTime } from '../components/shared/Icons';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -16,6 +18,8 @@ export default function ProductsPage() {
   const [search, setSearch]     = useState('');
 
   const { addToCart, isInCart, openCart } = useCart();
+  const { state: audioState, actions: audioActions } = useAudio();
+  const { activePreview, togglePreview } = usePreviewPlayer(30);
 
   useEffect(() => {
     getProducts()
@@ -100,6 +104,12 @@ export default function ProductsPage() {
             {filtered.map(product => {
               const inCart = isInCart(product.id);
               const trackCount = product.trackCount || product.tracks?.length || 0;
+              const isThisPreview = activePreview.productId === product.id;
+              const isPreviewPlaying = isThisPreview && activePreview.isPlaying;
+              const isPreviewLoading = isThisPreview && activePreview.loading;
+              const previewCurTime = isThisPreview ? activePreview.currentTime : 0;
+              const previewMaxTime = product.previewDuration || (isThisPreview ? activePreview.maxDuration : 30);
+              const previewPercent = Math.min(100, Math.max(0, (previewCurTime / previewMaxTime) * 100));
 
               return (
                 <article key={product.id} className="product-card">
@@ -135,6 +145,58 @@ export default function ProductsPage() {
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
+
+                    {(product.description || product.productDescription) && (
+                      <p className="product-card__description">
+                        {product.description || product.productDescription}
+                      </p>
+                    )}
+
+                    {/* Limited Audio Preview */}
+                    <div className="product-card__preview">
+                      <button
+                        type="button"
+                        className={`btn-preview product-card__preview-btn${isPreviewPlaying ? ' is-playing' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (audioState?.isPlaying) audioActions.pause();
+                          togglePreview(product.id, product.firstTrackId || product.tracks?.[0]?.id, product.previewDuration);
+                        }}
+                        aria-label={isPreviewPlaying ? `Pause preview of ${product.title}` : `Play preview of ${product.title}`}
+                      >
+                        <span className="btn-preview__icon">
+                          {isPreviewLoading ? (
+                            <span className="preview-spinner" />
+                          ) : isPreviewPlaying ? (
+                            <IconPause />
+                          ) : (
+                            <IconPlay />
+                          )}
+                        </span>
+                        <span className="btn-preview__label">
+                          {isPreviewLoading ? (
+                            'Loading preview…'
+                          ) : isPreviewPlaying ? (
+                            `Preview ${formatTime(previewCurTime)} / ${formatTime(previewMaxTime)}`
+                          ) : (
+                            `Play Preview (${product.previewDuration || 30}s)`
+                          )}
+                        </span>
+                      </button>
+
+                      {isPreviewPlaying && (
+                        <div className="product-card__preview-progress-track">
+                          <div
+                            className="product-card__preview-progress-bar"
+                            style={{ width: `${previewPercent}%` }}
+                          />
+                        </div>
+                      )}
+
+                      {isThisPreview && activePreview.error && (
+                        <p className="product-card__preview-error">{activePreview.error}</p>
+                      )}
+                    </div>
 
                     <div className="product-card__footer">
                       <div className="product-card__price-wrap">
@@ -180,3 +242,4 @@ export default function ProductsPage() {
     </main>
   );
 }
+

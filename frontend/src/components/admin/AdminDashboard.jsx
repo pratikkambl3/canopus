@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { deleteRecord } from '../../services/recordsService';
-import { updateProduct } from '../../services/adminStoreService';
+import { updateProduct, getPreviewSettings, updatePreviewSettings } from '../../services/adminStoreService';
 import { signOut } from '../../services/authService';
 import AddRecordForm from './AddRecordForm';
 import ProductManagerModal from './ProductManagerModal';
 import AdminOrdersTab from './AdminOrdersTab';
+import AdminSupportTab from './AdminSupportTab';
 
 export default function AdminDashboard({ records, onRecordsChange }) {
-  const [activeTab, setActiveTab]         = useState('records'); // 'records', 'products', 'orders'
+  const [activeTab, setActiveTab]         = useState('records'); // 'records', 'products', 'orders', 'support'
   const [showForm, setShowForm]           = useState(false);
   const [editRecord, setEditRecord]       = useState(null);
   const [deleting, setDeleting]           = useState(null);
@@ -17,6 +18,35 @@ export default function AdminDashboard({ records, onRecordsChange }) {
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [editingPriceVal, setEditingPriceVal] = useState('');
   const [savingPriceId, setSavingPriceId]   = useState(null);
+
+  // Global preview duration setting
+  const [previewDuration, setPreviewDuration] = useState(30);
+  const [savingDuration, setSavingDuration]   = useState(false);
+  const [durationNotice, setDurationNotice]   = useState(null);
+
+  useEffect(() => {
+    getPreviewSettings().then(data => {
+      if (data?.previewDurationSeconds) {
+        setPreviewDuration(data.previewDurationSeconds);
+      }
+    }).catch(console.error);
+  }, []);
+
+  const handleSavePreviewDuration = async () => {
+    setSavingDuration(true);
+    setDurationNotice(null);
+    try {
+      const res = await updatePreviewSettings(Number(previewDuration));
+      setPreviewDuration(res.previewDurationSeconds);
+      setDurationNotice('Preview duration updated successfully.');
+      setTimeout(() => setDurationNotice(null), 4000);
+    } catch (err) {
+      alert(err.message || 'Failed to update preview duration.');
+    } finally {
+      setSavingDuration(false);
+    }
+  };
+
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this record permanently?')) return;
@@ -135,6 +165,12 @@ export default function AdminDashboard({ records, onRecordsChange }) {
         >
           Customer Orders
         </button>
+        <button
+          className={`admin-tab-btn${activeTab === 'support' ? ' active' : ''}`}
+          onClick={() => setActiveTab('support')}
+        >
+          Support Queries
+        </button>
       </div>
 
       {/* TAB 1: RECORDS */}
@@ -183,6 +219,40 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {/* TAB 2: PRODUCTS STORE */}
       {activeTab === 'products' && (
         <div className="admin-tab-content">
+          <div className="admin-preview-settings-bar">
+            <div className="admin-preview-settings-info">
+              <h4>Audio Preview Duration</h4>
+              <p>Configure maximum sample listening duration for digital store albums (seconds).</p>
+            </div>
+            <div className="admin-preview-settings-control">
+              <input
+                type="number"
+                min="5"
+                max="300"
+                step="5"
+                className="form-input preview-dur-input"
+                style={{ width: 80, padding: '6px 10px' }}
+                value={previewDuration}
+                onChange={e => setPreviewDuration(e.target.value)}
+              />
+              <span className="unit-label" style={{ fontSize: 13, color: 'var(--text-muted)' }}>sec</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ padding: '6px 14px', fontSize: 13 }}
+                onClick={handleSavePreviewDuration}
+                disabled={savingDuration}
+              >
+                {savingDuration ? 'Saving…' : 'Save Duration'}
+              </button>
+            </div>
+            {durationNotice && (
+              <span className="preview-settings-notice" style={{ color: '#2e7d32', fontSize: 13, fontWeight: 500 }}>
+                ✓ {durationNotice}
+              </span>
+            )}
+          </div>
+
           <div className="admin-products-intro">
             <p>
               Manage digital album pricing, package audio files into downloadable ZIPs, and toggle store availability.
@@ -324,6 +394,13 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {activeTab === 'orders' && (
         <div className="admin-tab-content">
           <AdminOrdersTab />
+        </div>
+      )}
+
+      {/* TAB 4: SUPPORT */}
+      {activeTab === 'support' && (
+        <div className="admin-tab-content">
+          <AdminSupportTab />
         </div>
       )}
 

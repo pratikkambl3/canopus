@@ -48,7 +48,7 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
         title:        t.title        ?? '',
         originalTitle: t.originalTitle ?? '',
         version:      t.version      ?? '',
-        bpm:          t.bpm          ?? '',
+        bpm:          (t.bpm && Number(t.bpm) > 0) ? t.bpm : '',
         key:          t.key          ?? '',
         audioFile:    null,
         audioUrl:     t.audioUrl     ?? '',
@@ -128,8 +128,8 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
       formData.append('releaseDate', form.releaseDate);
       formData.append('featured',    form.featured);
       formData.append('price',       String(form.price || 0));
-      if (form.artist)      formData.append('artist',      form.artist);
-      if (form.description) formData.append('description', form.description);
+      formData.append('artist',      form.artist || '');
+      formData.append('description', form.description || '');
 
       if (isEdit && initialData.artworkUrl) formData.append('artworkUrl', initialData.artworkUrl);
       if (artworkFile) formData.append('artworkFile', artworkFile);
@@ -139,12 +139,15 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
       let artworkFileIdx = 0;
 
       const tracksData = tracks.map(t => {
+        const parsedBpm = parseInt(t.bpm, 10);
+        const validBpm = !isNaN(parsedBpm) && parsedBpm > 0 ? parsedBpm : null;
+
         const payload = {
           id:           t.id,
           title:        t.title,
           originalTitle: t.originalTitle,
           version:      t.version,
-          bpm:          parseInt(t.bpm, 10) || 0,
+          bpm:          validBpm,
           key:          t.key,
           audioUrl:     t.audioUrl,
           artworkUrl:   t.artworkUrl,

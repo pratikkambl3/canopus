@@ -92,7 +92,7 @@ function rowToRecord(r, tracks = []) {
       title:        t.title,
       originalTitle: t.original_title,
       version:      t.version,
-      bpm:          t.bpm,
+      bpm:          (t.bpm && Number(t.bpm) > 0) ? Number(t.bpm) : null,
       key:          t.key,
       audioUrl:     t.audio_url,
       artworkUrl:   t.artwork_url || null,
@@ -159,7 +159,7 @@ router.post('/', authenticate, uploadFields, async (req, res) => {
     await client.query('BEGIN');
 
     const {
-      id, title, genre, releaseDate, featured, tracksData,
+      id, title, artist, description, genre, releaseDate, featured, tracksData,
       price, productPrice, productDescription, productEnabled
     } = req.body;
 
@@ -169,18 +169,20 @@ router.post('/', authenticate, uploadFields, async (req, res) => {
 
     const { rows: recordRows } = await client.query(
       `INSERT INTO records
-         (id, title, genre, release_date, featured, artwork_url, product_price, product_description, product_enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         (id, title, artist, description, genre, release_date, featured, artwork_url, product_price, product_description, product_enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [
         recordId,
         title || 'Untitled Record',
+        artist || '',
+        description || '',
         genre || 'Experimental',
         releaseDate || null,
         featured === 'true' || featured === true,
         artworkUrl || req.body.artworkUrl || '',
         initPrice,
-        productDescription || '',
+        productDescription || description || '',
         productEnabled === 'true' || productEnabled === true,
       ]
     );
@@ -203,6 +205,9 @@ router.post('/', authenticate, uploadFields, async (req, res) => {
         ? (fileUrl(req, 'trackArtworkFiles', 'artwork', t.artworkFileIndex) || t.artworkUrl || '')
         : (t.artworkUrl || '');
 
+      const rawBpm = t.bpm !== undefined && t.bpm !== null && t.bpm !== '' ? parseInt(t.bpm, 10) : null;
+      const bpmVal = (!isNaN(rawBpm) && rawBpm > 0) ? rawBpm : null;
+
       const { rows: trackRows } = await client.query(
         `INSERT INTO tracks
            (id, record_id, title, original_title, version, bpm, key, audio_url, artwork_url, track_number)
@@ -214,7 +219,7 @@ router.post('/', authenticate, uploadFields, async (req, res) => {
           t.title || 'Untitled Track',
           t.originalTitle || '',
           t.version || '',
-          parseInt(t.bpm, 10) || 0,
+          bpmVal,
           t.key || '',
           aUrl,
           trackArtworkUrl,
@@ -242,7 +247,7 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
     await client.query('BEGIN');
     const { id } = req.params;
     const {
-      title, genre, releaseDate, featured, tracksData,
+      title, artist, description, genre, releaseDate, featured, tracksData,
       price, productPrice, productDescription, productEnabled
     } = req.body;
 
@@ -252,69 +257,88 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
     const prev = existing.rows[0];
     const newArtworkUrl = fileUrl(req, 'artworkFile', 'artwork') || req.body.artworkUrl || prev.artwork_url;
     const updatedPrice = price !== undefined ? Math.max(0, Number(price)) : (productPrice !== undefined ? Math.max(0, Number(productPrice)) : prev.product_price);
-    const updatedDesc  = productDescription !== undefined ? productDescription : prev.product_description;
+    const updatedDesc  = description !== undefined ? description : (productDescription !== undefined ? productDescription : prev.description);
+    const updatedArtist = artist !== undefined ? artist : prev.artist;
     const updatedEnabled = productEnabled !== undefined ? (productEnabled === 'true' || productEnabled === true) : prev.product_enabled;
 
     const { rows: recordRows } = await client.query(
       `UPDATE records SET
-         title = $1, genre = $2, release_date = $3, featured = $4,
-         artwork_url = $5, product_price = $6, product_description = $7, product_enabled = $8, updated_at = NOW()
-       WHERE id = $9
+         title = $1, artist = $2, description = $3, genre = $4, release_date = $5, featured = $6,
+         artwork_url = $7, product_price = $8, product_description = $9, product_enabled = $10, updated_at = NOW()
+       WHERE id = $11
        RETURNING *`,
       [
         title ?? prev.title,
+        updatedArtist ?? '',
+        updatedDesc ?? '',
         genre ?? prev.genre,
         releaseDate || prev.release_date,
         featured === 'true' || featured === true || (featured === undefined && prev.featured),
         newArtworkUrl,
         updatedPrice,
-        updatedDesc,
+        productDescription !== undefined ? productDescription : prev.product_description,
         updatedEnabled,
         id,
       ]
     );
 
-    // Delete old tracks and re-insert to handle reordering/deletions cleanly
-    await client.query('DELETE FROM tracks WHERE record_id = $1', [id]);
+    let parsedTracks = null;
+    if (tracksData) {
+      try {
+        parsedTracks = typeof tracksData === 'string' ? JSON.parse(tracksData) : tracksData;
+      } catch (_) {}
+    } else if (req.body.tracks && Array.isArray(req.body.tracks)) {
+      parsedTracks = req.body.tracks;
+    }
 
-    const parsedTracks = tracksData ? JSON.parse(tracksData) : [];
     const insertedTracks = [];
 
-    for (let i = 0; i < parsedTracks.length; i++) {
-      const t = parsedTracks[i];
-      const tId = t.id && !t.id.startsWith('new-') ? t.id : `track-${uuid()}`;
-      
-      // Audio file
-      let aUrl = t.audioUrl || '';
-      if (t.audioFileIndex !== undefined && t.audioFileIndex !== null) {
-        aUrl = fileUrl(req, 'audioFiles', 'audio', t.audioFileIndex) || aUrl;
-      }
+    if (parsedTracks !== null) {
+      // Delete old tracks and re-insert to handle reordering/deletions cleanly
+      await client.query('DELETE FROM tracks WHERE record_id = $1', [id]);
 
-      // Track artwork
-      let trackArtworkUrl = t.artworkUrl || '';
-      if (t.artworkFileIndex !== undefined && t.artworkFileIndex !== null) {
-        trackArtworkUrl = fileUrl(req, 'trackArtworkFiles', 'artwork', t.artworkFileIndex) || trackArtworkUrl;
-      }
+      for (let i = 0; i < parsedTracks.length; i++) {
+        const t = parsedTracks[i];
+        const tId = t.id && !t.id.startsWith('new-') ? t.id : `track-${uuid()}`;
+        
+        // Audio file
+        let aUrl = t.audioUrl || t.audio_url || '';
+        if (t.audioFileIndex !== undefined && t.audioFileIndex !== null) {
+          aUrl = fileUrl(req, 'audioFiles', 'audio', t.audioFileIndex) || aUrl;
+        }
 
-      const { rows: trackRows } = await client.query(
-        `INSERT INTO tracks
-           (id, record_id, title, original_title, version, bpm, key, audio_url, artwork_url, track_number)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-         RETURNING *`,
-        [
-          tId,
-          id,
-          t.title || 'Untitled Track',
-          t.originalTitle || '',
-          t.version || '',
-          parseInt(t.bpm, 10) || 0,
-          t.key || '',
-          aUrl,
-          trackArtworkUrl,
-          i + 1
-        ]
-      );
-      insertedTracks.push(trackRows[0]);
+        // Track artwork
+        let trackArtworkUrl = t.artworkUrl || t.artwork_url || '';
+        if (t.artworkFileIndex !== undefined && t.artworkFileIndex !== null) {
+          trackArtworkUrl = fileUrl(req, 'trackArtworkFiles', 'artwork', t.artworkFileIndex) || trackArtworkUrl;
+        }
+
+        const rawBpm = t.bpm !== undefined && t.bpm !== null && t.bpm !== '' ? parseInt(t.bpm, 10) : null;
+        const bpmVal = (!isNaN(rawBpm) && rawBpm > 0) ? rawBpm : null;
+
+        const { rows: trackRows } = await client.query(
+          `INSERT INTO tracks
+             (id, record_id, title, original_title, version, bpm, key, audio_url, artwork_url, track_number)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           RETURNING *`,
+          [
+            tId,
+            id,
+            t.title || 'Untitled Track',
+            t.originalTitle || t.original_title || '',
+            t.version || '',
+            bpmVal,
+            t.key || '',
+            aUrl,
+            trackArtworkUrl,
+            i + 1
+          ]
+        );
+        insertedTracks.push(trackRows[0]);
+      }
+    } else {
+      const { rows: existingTracks } = await client.query('SELECT * FROM tracks WHERE record_id = $1 ORDER BY track_number ASC', [id]);
+      insertedTracks.push(...existingTracks);
     }
 
     await client.query('COMMIT');

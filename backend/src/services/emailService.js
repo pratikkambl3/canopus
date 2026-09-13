@@ -265,8 +265,129 @@ Timeless Music. Never Gets Old.
   return sendMail({ to: order.customer_email, subject, text, html });
 }
 
+/**
+ * Support Notification to Support Team / Admin
+ */
+async function sendSupportNotificationToTeam(query) {
+  const supportDest = process.env.SUPPORT_EMAIL || process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL || 'admin@canopus.local';
+  const subject = `[Support Query] ${query.subject} — from ${query.name}`;
+
+  const text = `
+New Support Query Received:
+
+Name:    ${query.name}
+Email:   ${query.email}
+Phone:   ${query.phone || 'Not provided'}
+Subject: ${query.subject}
+Date:    ${new Date().toLocaleString()}
+
+Message / Query:
+${query.message}
+
+────────────────────────────────────────
+Manage support queries in the CANOPUS admin dashboard.
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'DM Sans', -apple-system, sans-serif; background-color: #F7F4F0; color: #1A1A1A; margin: 0; padding: 40px 20px; }
+    .card { max-width: 580px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E8E2DA; padding: 40px; border-radius: 2px; }
+    .brand { font-family: 'Playfair Display', Georgia, serif; font-size: 20px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 24px; color: #1A1A1A; }
+    h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; font-weight: 500; margin-top: 0; margin-bottom: 16px; }
+    .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+    .meta-table td { padding: 8px 0; border-bottom: 1px solid #E8E2DA; }
+    .meta-label { font-weight: 600; width: 120px; color: #7A7A7A; text-transform: uppercase; font-size: 11px; letter-spacing: 0.08em; }
+    .message-box { background: #F7F4F0; border-left: 3px solid #1A1A1A; padding: 16px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; margin-top: 16px; color: #2A2A2A; }
+    .footer { font-size: 11px; color: #7A7A7A; text-align: center; margin-top: 32px; letter-spacing: 0.05em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">CANOPUS</div>
+    <h1>New Support Query</h1>
+    <table class="meta-table">
+      <tr><td class="meta-label">Customer:</td><td><strong>${query.name}</strong></td></tr>
+      <tr><td class="meta-label">Email:</td><td><a href="mailto:${query.email}">${query.email}</a></td></tr>
+      <tr><td class="meta-label">Phone:</td><td>${query.phone || 'None'}</td></tr>
+      <tr><td class="meta-label">Subject:</td><td>${query.subject}</td></tr>
+    </table>
+    <p style="font-weight: 600; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #7A7A7A;">Message Content:</p>
+    <div class="message-box">${query.message}</div>
+    <div class="footer">CANOPUS Admin Support Dispatch</div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return sendMail({ to: supportDest, subject, text, html });
+}
+
+/**
+ * Support Acknowledgement to Customer
+ */
+async function sendSupportAcknowledgementToUser(query) {
+  const subject = `Support Request Received`;
+
+  const text = `
+Hello ${query.name},
+
+Thank you for contacting our support team. We have received your query and our team will respond to you shortly.
+
+Subject: ${query.subject}
+
+CANOPUS
+Timeless Music. Never Gets Old.
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'DM Sans', -apple-system, sans-serif; background-color: #F7F4F0; color: #1A1A1A; margin: 0; padding: 40px 20px; }
+    .card { max-width: 580px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E8E2DA; padding: 40px; border-radius: 2px; }
+    .brand { font-family: 'Playfair Display', Georgia, serif; font-size: 20px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 24px; color: #1A1A1A; }
+    h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; font-weight: 500; margin-top: 0; margin-bottom: 16px; }
+    p { font-size: 14px; line-height: 1.6; color: #3D3D3D; margin-bottom: 16px; }
+    .query-summary { background: #F7F4F0; border: 1px solid #E8E2DA; padding: 14px 18px; border-radius: 2px; margin: 20px 0; font-size: 13px; }
+    .footer { font-size: 11px; color: #7A7A7A; text-align: center; margin-top: 32px; letter-spacing: 0.05em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">CANOPUS</div>
+    <h1>Support Request Received</h1>
+    <p>Hello ${query.name},</p>
+    <p>Thank you for contacting our support team. We have received your query and our team will respond to you shortly.</p>
+    
+    <div class="query-summary">
+      <strong>Your Subject:</strong> ${query.subject}
+    </div>
+
+    <p style="font-size: 13px; color: #7A7A7A;">
+      Our team typically responds within 24 hours. If your query is regarding a recent purchase, having your Order Number or payment UTR ready helps us resolve it faster.
+    </p>
+
+    <div class="footer">
+      CANOPUS · Timeless Music. Never Gets Old.
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return sendMail({ to: query.email, subject, text, html });
+}
+
 module.exports = {
   sendOrderConfirmation,
   sendPaymentApprovedEmail,
   sendPaymentRejectedEmail,
+  sendSupportNotificationToTeam,
+  sendSupportAcknowledgementToUser,
 };

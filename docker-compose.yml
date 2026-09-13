@@ -53,8 +53,11 @@ services:
       UPLOAD_DIR:            /app/uploads
       DIGITAL_PRODUCTS_PATH: ${DIGITAL_PRODUCTS_PATH:-/data/digital-products}
       STORAGE_PATH:          ${STORAGE_PATH:-/data}
-      PAYMENT_UPI_ID:        ${PAYMENT_UPI_ID:-canopus@upi}
+      PAYMENT_UPI_ID:        ${PAYMENT_UPI_ID:-pratik.kamble11@ybl}
+      PAYMENT_PAYEE_NAME:    ${PAYMENT_PAYEE_NAME:-Pratik Prakash Kamble}
       PAYMENT_QR_IMAGE_URL:  ${PAYMENT_QR_IMAGE_URL:-/payment-qr.png}
+      PREVIEW_DURATION_SECONDS: ${PREVIEW_DURATION_SECONDS:-30}
+      SUPPORT_EMAIL:         ${SUPPORT_EMAIL:-stocksbulls47@gmail.com}
       SMTP_HOST:             ${SMTP_HOST:-}
       SMTP_PORT:             ${SMTP_PORT:-587}
       SMTP_SECURE:           ${SMTP_SECURE:-false}
@@ -80,6 +83,7 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
         VITE_PAYMENT_UPI_ID: ${PAYMENT_UPI_ID:-pratik.kamble11@ybl}
+        VITE_PAYMENT_PAYEE_NAME: ${PAYMENT_PAYEE_NAME:-Pratik Prakash Kamble}
         VITE_PAYMENT_QR_IMAGE_URL: ${PAYMENT_QR_IMAGE_URL:-/payment-qr.png}
     container_name: canopus_frontend
     restart: unless-stopped

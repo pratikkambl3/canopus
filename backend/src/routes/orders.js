@@ -9,6 +9,8 @@
    ================================================================ */
 
 const router   = require('express').Router();
+const path     = require('path');
+const fs       = require('fs');
 const crypto   = require('crypto');
 const { v4: uuid } = require('uuid');
 const { pool } = require('../db');
@@ -178,6 +180,25 @@ router.post('/', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+/* ── GET /api/orders/payment-qr/download — public (download QR image file) ── */
+router.get('/payment-qr/download', (_req, res) => {
+  const possiblePaths = [
+    path.join(__dirname, '../public/payment-qr.png'),
+    path.join(__dirname, '../../public/payment-qr.png'),
+    path.join(process.env.UPLOAD_DIR || '/app/uploads', 'payment-qr.png'),
+    path.join(__dirname, '../../../frontend/public/payment-qr.png'),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Type', 'image/png');
+      return res.download(p, 'payment-qr.png');
+    }
+  }
+
+  res.status(404).json({ error: 'Payment QR image not found.' });
 });
 
 /* ── GET /api/orders/:id — public (customer confirmation check) ── */
