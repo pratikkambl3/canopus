@@ -1,0 +1,106 @@
+services:
+
+  # ──────────────────────────────────────────────────────────────
+  # PostgreSQL — persisted via named volume, internal network only
+  # ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: canopus_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:               ${DB_NAME}
+      POSTGRES_USER:             ${DB_USER}
+      POSTGRES_PASSWORD:         ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: md5
+    volumes:
+      - canopus_data:/var/lib/postgresql/data
+    networks:
+      - canopus_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    # NOT exposed externally — only reachable via canopus_net
+
+  # ──────────────────────────────────────────────────────────────
+  # Backend — Express REST API
+  # ──────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: canopus_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV:        ${APP_ENV:-production}
+      BACKEND_PORT:   ${BACKEND_PORT:-8000}
+      DB_HOST:        postgres
+      DB_PORT:        ${DB_PORT:-5432}
+      DB_NAME:        ${DB_NAME}
+      DB_USER:        ${DB_USER}
+      DB_PASSWORD:    ${DB_PASSWORD}
+      JWT_SECRET:     ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      ADMIN_EMAIL:    ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS:   ${CORS_ORIGINS:-http://localhost:3000}
+      PUBLIC_URL:            ${PUBLIC_URL:-}
+      UPLOAD_DIR:            /app/uploads
+      DIGITAL_PRODUCTS_PATH: ${DIGITAL_PRODUCTS_PATH:-/data/digital-products}
+      STORAGE_PATH:          ${STORAGE_PATH:-/data}
+      PAYMENT_UPI_ID:        ${PAYMENT_UPI_ID:-canopus@upi}
+      PAYMENT_QR_IMAGE_URL:  ${PAYMENT_QR_IMAGE_URL:-/payment-qr.png}
+      SMTP_HOST:             ${SMTP_HOST:-}
+      SMTP_PORT:             ${SMTP_PORT:-587}
+      SMTP_SECURE:           ${SMTP_SECURE:-false}
+      SMTP_USER:             ${SMTP_USER:-}
+      SMTP_PASSWORD:         ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL:       ${SMTP_FROM_EMAIL:-orders@canopus.local}
+      SMTP_FROM_NAME:        ${SMTP_FROM_NAME:-CANOPUS Records}
+      APP_URL:               ${APP_URL:-http://localhost:3000}
+    volumes:
+      - canopus_uploads:/app/uploads
+      - canopus_digital_products:/data/digital-products
+    networks:
+      - canopus_net
+    # NOT exposed externally — Nginx proxies /api/ to this service
+
+  # ──────────────────────────────────────────────────────────────
+  # Frontend — Nginx + Vite SPA
+  # ──────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_PAYMENT_UPI_ID: ${PAYMENT_UPI_ID:-pratik.kamble11@ybl}
+        VITE_PAYMENT_QR_IMAGE_URL: ${PAYMENT_QR_IMAGE_URL:-/payment-qr.png}
+    container_name: canopus_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - canopus_net
+
+# ── Named volumes ─────────────────────────────────────────────
+volumes:
+  canopus_data:
+    name: canopus_data
+  canopus_uploads:
+    name: canopus_uploads
+  canopus_digital_products:
+    name: canopus_digital_products
+
+# ── Internal network ──────────────────────────────────────────
+networks:
+  canopus_net:
+    name: canopus_net
+    driver: bridge

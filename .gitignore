@@ -1,0 +1,31 @@
+# ── Environment files ────────────────────────────────────────
+# NEVER commit files with real credentials
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── Node / npm ───────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log
+.pnp
+.pnp.js
+
+# ── Build outputs ────────────────────────────────────────────
+dist/
+build/
+.vite/
+
+# ── OS / editors ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+
+# ── Docker ───────────────────────────────────────────────────
+# Uploaded media files (managed by Docker volume)
+backend/uploads/
+frontend/dist/

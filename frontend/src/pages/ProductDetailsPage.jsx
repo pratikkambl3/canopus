@@ -1,0 +1,263 @@
+/* ================================================================
+   CANOPUS — Product Details Page
+   Dedicated editorial digital album page with audio preview & vinyl.
+   ================================================================ */
+
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { getProduct } from '../services/storeService';
+import { useCart } from '../context/CartContext';
+import { useAudio } from '../context/AudioContext';
+import {
+  IconPlay, IconPause, IconPlayCircle, IconBag, IconCheck, formatTime,
+} from '../components/shared/Icons';
+
+function VinylDisc() {
+  return (
+    <svg viewBox="0 0 200 200" className="vinyl-svg" aria-hidden="true">
+      <circle cx="100" cy="100" r="98" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="1" />
+      <circle cx="100" cy="100" r="80" fill="none" stroke="#2a2a2a" strokeWidth="1" />
+      <circle cx="100" cy="100" r="70" fill="none" stroke="#2a2a2a" strokeWidth="1" />
+      <circle cx="100" cy="100" r="60" fill="none" stroke="#2a2a2a" strokeWidth="1" />
+      <circle cx="100" cy="100" r="50" fill="none" stroke="#2a2a2a" strokeWidth="1" />
+      <circle cx="100" cy="100" r="40" fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
+      <circle cx="100" cy="100" r="30" fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
+      <circle cx="100" cy="100" r="20" fill="#F7F4F0" />
+      <circle cx="100" cy="100" r="14" fill="#e8e2da" />
+      <circle cx="100" cy="100" r="5"  fill="#1a1a1a" />
+      <text x="100" y="97" textAnchor="middle" fill="#7A7A7A" fontSize="5" fontFamily="serif" letterSpacing="1.5">CANOPUS</text>
+      <text x="100" y="105" textAnchor="middle" fill="#7A7A7A" fontSize="4" fontFamily="serif">●</text>
+    </svg>
+  );
+}
+
+export default function ProductDetailsPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const { addToCart, isInCart, openCart } = useCart();
+  const { state: audioState, actions: audioActions } = useAudio();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    getProduct(id)
+      .then(p => setProduct(p))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <main className="product-detail-page page">
+        <div className="product-detail__loading">Loading album…</div>
+      </main>
+    );
+  }
+
+  if (!product) {
+    return (
+      <main className="product-detail-page page">
+        <div className="product-detail__empty">
+          <h2>Album not found</h2>
+          <p>This product may no longer be available in our collection.</p>
+          <Link to="/products" className="btn-secondary">Return to Products</Link>
+        </div>
+      </main>
+    );
+  }
+
+  const tracks = product.tracks || [];
+  const inCart = isInCart(product.id);
+
+  // Audio preview playback logic
+  const enrichedTracks = tracks.map(t => ({
+    ...t,
+    artworkUrl: t.artworkUrl || product.artworkUrl || null,
+    genre: product.genre || '',
+  }));
+
+  const isRecordActive  = enrichedTracks.some(t => t.id === audioState.currentTrackId);
+  const isRecordPlaying = isRecordActive && audioState.isPlaying;
+
+  const handlePlayPreview = (track, e) => {
+    e?.stopPropagation();
+    if (audioState.currentTrackId === track.id) {
+      audioActions.togglePlay();
+      return;
+    }
+    if (!isRecordActive) {
+      audioActions.loadTracks(enrichedTracks);
+    }
+    audioActions.selectTrack(track.id);
+  };
+
+  const handleBuyNow = () => {
+    addToCart(product);
+    navigate('/checkout');
+  };
+
+  return (
+    <main className="product-detail-page page">
+      {/* Breadcrumb */}
+      <nav className="product-detail__breadcrumb" aria-label="Breadcrumb">
+        <Link to="/products">Products</Link>
+        <span>/</span>
+        <span>{product.title}</span>
+      </nav>
+
+      {/* Main Hero: 3-column editorial grid */}
+      <section className="product-hero">
+        {/* Left: Artwork + Vinyl */}
+        <div className="product-hero__artwork-col">
+          <div className="product-hero__artwork-wrap">
+            <div className="product-hero__vinyl" aria-hidden="true">
+              <VinylDisc />
+            </div>
+            <div className="product-hero__cover-shadow">
+              {product.artworkUrl ? (
+                <img src={product.artworkUrl} alt={product.title} className="product-hero__cover" />
+              ) : (
+                <div className="product-hero__cover product-hero__cover--placeholder">♫</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Title, artist, metadata, actions */}
+        <div className="product-hero__info-col">
+          <p className="product-hero__eyebrow">DIGITAL ALBUM</p>
+          <h1 className="product-hero__title">{product.title}</h1>
+          {product.artist && <p className="product-hero__artist">{product.artist}</p>}
+
+          <div className="product-hero__meta">
+            {product.genre && <span>{product.genre}</span>}
+            {product.releaseYear && <><span className="product-hero__meta-sep">/</span><span>{product.releaseYear}</span></>}
+            {tracks.length > 0 && <><span className="product-hero__meta-sep">/</span><span>{tracks.length} {tracks.length === 1 ? 'TRACK' : 'TRACKS'}</span></>}
+          </div>
+
+          <p className="product-hero__description">
+            {product.productDescription || product.description || 'Mastered high-fidelity audio release from the CANOPUS archives.'}
+          </p>
+
+          <div className="product-hero__price-box">
+            <span className="product-hero__price-label">Price</span>
+            <span className="product-hero__price">₹{product.price}</span>
+          </div>
+
+          <div className="product-hero__actions">
+            <button
+              type="button"
+              className={`btn-primary product-hero__add-btn${inCart ? ' product-hero__add-btn--incart' : ''}`}
+              onClick={() => addToCart(product)}
+            >
+              {inCart ? (
+                <>
+                  <IconCheck /> In Cart
+                </>
+              ) : (
+                <>
+                  <IconBag /> Add to Cart
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className="btn-secondary product-hero__buynow-btn"
+              onClick={handleBuyNow}
+            >
+              Buy Now
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Specifications panel */}
+        <aside className="product-hero__specs-col">
+          <div className="product-specs">
+            <p className="product-specs__heading">DIGITAL ALBUM</p>
+            <dl className="product-specs__list">
+              <dt className="product-specs__label">FORMAT</dt>
+              <dd className="product-specs__value">ZIP Download</dd>
+
+              <dt className="product-specs__label">DELIVERY</dt>
+              <dd className="product-specs__value">Email Link</dd>
+
+              <dt className="product-specs__label">AUDIO</dt>
+              <dd className="product-specs__value">Original High-Quality</dd>
+
+              <dt className="product-specs__label">TRACKS</dt>
+              <dd className="product-specs__value">{tracks.length}</dd>
+
+              <dt className="product-specs__label">PRICE</dt>
+              <dd className="product-specs__value">₹{product.price}</dd>
+            </dl>
+
+            <div className="product-specs__note">
+              Digital album. Secure download link delivered to your email address immediately after payment verification.
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      {/* Track Preview Section */}
+      <section className="product-tracks-section">
+        <div className="product-tracks__header">
+          <h2 className="product-tracks__title">Tracklist Preview</h2>
+          <span className="product-tracks__count">{tracks.length} {tracks.length === 1 ? 'Track' : 'Tracks'}</span>
+        </div>
+
+        {tracks.length === 0 ? (
+          <p className="product-tracks__empty">No tracks available.</p>
+        ) : (
+          <ol className="product-tracklist" aria-label="Album tracks">
+            {tracks.map((track, idx) => {
+              const isActive  = audioState.currentTrackId === track.id;
+              const isPlaying = isActive && audioState.isPlaying;
+              const thumb = track.artworkUrl || product.artworkUrl || null;
+
+              return (
+                <li key={track.id} className={`product-track-row${isActive ? ' active' : ''}`}>
+                  <button
+                    type="button"
+                    className="product-track-row__btn"
+                    onClick={(e) => handlePlayPreview(track, e)}
+                    aria-label={`Preview ${track.title}`}
+                  >
+                    <span className="product-track-row__num">
+                      {isPlaying ? (
+                        <span className="track-row__bars"><span/><span/><span/></span>
+                      ) : (
+                        String(idx + 1).padStart(2, '0')
+                      )}
+                    </span>
+
+                    {thumb ? (
+                      <img src={thumb} alt={track.title} className="product-track-row__thumb" loading="lazy" />
+                    ) : (
+                      <div className="product-track-row__thumb product-track-row__thumb--placeholder">♫</div>
+                    )}
+
+                    <div className="product-track-row__info">
+                      <p className="product-track-row__title">{track.title}</p>
+                      {track.originalTitle && <p className="product-track-row__sub">{track.originalTitle}</p>}
+                    </div>
+
+                    <span className="product-track-row__dur">
+                      {track.duration ? formatTime(track.duration) : '—'}
+                    </span>
+
+                    <span className="product-track-row__icon" aria-hidden="true">
+                      {isPlaying ? <IconPause /> : <IconPlayCircle />}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+    </main>
+  );
+}
