@@ -47,18 +47,48 @@ export async function generateProductZip(id) {
 }
 
 /**
- * Upload a custom digital album ZIP
+/**
+ * Upload a custom digital album ZIP with real-time progress callback
  */
-export async function uploadProductZip(id, file) {
-  const formData = new FormData();
-  formData.append('productZipFile', file);
+export function uploadProductZip(id, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('productZipFile', file);
 
-  const res = await fetch(`${API_BASE}/products/${id}/upload-zip`, {
-    method: 'POST',
-    headers: { ...authHeaders() },
-    body: formData,
+    xhr.open('POST', `${API_BASE}/products/${id}/upload-zip`);
+    const headers = authHeaders();
+    if (headers.Authorization) {
+      xhr.setRequestHeader('Authorization', headers.Authorization);
+    }
+
+    if (xhr.upload && typeof onProgress === 'function') {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      let json = {};
+      try {
+        json = JSON.parse(xhr.responseText);
+      } catch (_) {}
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(json);
+      } else {
+        reject(new Error(json.error || `Upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during file upload.'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out.'));
+
+    xhr.send(formData);
   });
-  return handleResponse(res);
 }
 
 /**

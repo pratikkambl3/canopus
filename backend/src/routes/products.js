@@ -25,7 +25,8 @@ const zipStorage = multer.diskStorage({
     cb(null, albumDir);
   },
   filename(_req, file, cb) {
-    cb(null, 'album.zip');
+    const rand = crypto.randomBytes(6).toString('hex');
+    cb(null, `upload-${Date.now()}-${rand}.tmp`);
   },
 });
 
@@ -35,10 +36,51 @@ const uploadZip = multer({
   fileFilter(_req, file, cb) {
     const isZip = file.mimetype === 'application/zip' || 
                   file.mimetype === 'application/x-zip-compressed' ||
+                  file.mimetype === 'application/octet-stream' ||
                   path.extname(file.originalname).toLowerCase() === '.zip';
     cb(null, isZip);
   },
 });
+
+/**
+ * Verifies that the file starts with standard ZIP magic bytes
+ */
+function verifyZipMagic(filePath) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(4);
+    const bytesRead = fs.readSync(fd, buf, 0, 4, 0);
+    if (bytesRead < 4) return false;
+    // Standard ZIP: 0x50, 0x4B, 0x03, 0x04
+    // Empty ZIP: 0x50, 0x4B, 0x05, 0x06
+    // Spanned ZIP: 0x50, 0x4B, 0x07, 0x08
+    return buf[0] === 0x50 && buf[1] === 0x4B && (
+      (buf[2] === 0x03 && buf[3] === 0x04) ||
+      (buf[2] === 0x05 && buf[3] === 0x06) ||
+      (buf[2] === 0x07 && buf[3] === 0x08)
+    );
+  } catch (e) {
+    return false;
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch (_) {}
+    }
+  }
+}
+
+/**
+ * Calculates SHA-256 hash using streaming chunks (memory safe for 1GB+ files)
+ */
+function getFileSha256(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
 
 /**
  * Helper to fetch configured preview duration (admin DB setting > env var > 30)
@@ -62,6 +104,8 @@ async function getPreviewDuration() {
  */
 function rowToProduct(r, tracks = [], previewDuration = 30) {
   const hasZip = Boolean(r.digital_file_path && fs.existsSync(r.digital_file_path));
+  const previewTrackId = r.preview_track_id || (tracks.length > 0 ? tracks[0].id : null);
+  const matchedTrack = tracks.find(t => t.id === previewTrackId) || tracks[0] || null;
 
   return {
     id:                 r.id,
@@ -77,7 +121,19 @@ function rowToProduct(r, tracks = [], previewDuration = 30) {
     productEnabled:     Boolean(r.product_enabled),
     price:              Number(r.product_price || 0),
     productDescription: r.product_description || r.description || '',
-    previewDuration:    previewDuration,
+    // Preview Configuration
+    previewEnabled:     r.preview_enabled !== false,
+    previewTrackId:     previewTrackId,
+    previewStartTime:   Number(r.preview_start_time || 0),
+    previewEndTime:     Number(r.preview_end_time || 30),
+    previewDuration:    Number(r.preview_duration || (Number(r.preview_end_time || 30) - Number(r.preview_start_time || 0)) || previewDuration),
+    previewTrack: matchedTrack ? {
+      id: matchedTrack.id,
+      title: matchedTrack.title,
+      artist: matchedTrack.artist || r.artist || '',
+      duration: matchedTrack.duration,
+      trackNumber: matchedTrack.track_number,
+    } : null,
     // Digital ZIP metadata (safe, no full system paths exposed)
     digitalFile: {
       exists:   hasZip,
@@ -181,7 +237,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-/* ── GET /api/products/:id/preview — public (limited audio preview streaming) ── */
+/* ── GET /api/products/:id/preview — public (strictly bounded audio preview streaming) ── */
 router.get('/:id/preview', async (req, res) => {
   try {
     const { id } = req.params;
@@ -190,12 +246,22 @@ router.get('/:id/preview', async (req, res) => {
     const { rows: records } = await pool.query('SELECT * FROM records WHERE id = $1', [id]);
     if (!records.length) return res.status(404).json({ error: 'Record not found.' });
 
-    // Find requested track or default to first track
+    const record = records[0];
+
+    // Verify preview is enabled
+    if (record.preview_enabled === false) {
+      return res.status(403).json({ error: 'Audio preview is disabled for this record.' });
+    }
+
+    // Find requested track or default to configured preview track or first track
     let trackQuery = 'SELECT * FROM tracks WHERE record_id = $1';
     const params = [id];
     if (trackId) {
       trackQuery += ' AND id = $2';
       params.push(trackId);
+    } else if (record.preview_track_id) {
+      trackQuery += ' AND id = $2';
+      params.push(record.preview_track_id);
     } else {
       trackQuery += ' ORDER BY track_number ASC LIMIT 1';
     }
@@ -206,7 +272,15 @@ router.get('/:id/preview', async (req, res) => {
     }
 
     const track = tracks[0];
-    const previewDuration = await getPreviewDuration();
+    const globalDefault = await getPreviewDuration();
+
+    // Determine configured preview window
+    const startTime = Math.max(0, Number(record.preview_start_time || 0));
+    let endTime = Number(record.preview_end_time || (startTime + globalDefault));
+    if (endTime <= startTime) {
+      endTime = startTime + globalDefault;
+    }
+    const previewDuration = endTime - startTime;
 
     // Locate file on disk
     const audioUrl = track.audio_url;
@@ -228,11 +302,6 @@ router.get('/:id/preview', async (req, res) => {
     const stat = fs.statSync(filePath);
     const totalSize = stat.size;
 
-    // Estimate byte limit for preview duration
-    // Standard high-quality MP3 (320kbps) is ~40 KB/s; 128kbps is ~16 KB/s
-    // Cap strictly so unauthenticated users cannot download beyond the preview window
-    const previewLimit = Math.min(totalSize, Math.max(256 * 1024, previewDuration * 42 * 1024));
-
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes = {
       '.mp3': 'audio/mpeg',
@@ -244,26 +313,48 @@ router.get('/:id/preview', async (req, res) => {
     };
     const contentType = mimeTypes[ext] || 'audio/mpeg';
 
+    // Calculate byte bounds for preview window
+    const bytesPerSec = ext === '.wav' ? 176400 : 40000;
+    let byteStart = 0;
+    let byteEnd = totalSize - 1;
+
+    if (track.duration && Number(track.duration) > 0) {
+      const dur = Number(track.duration);
+      byteStart = Math.max(0, Math.floor((startTime / dur) * totalSize));
+      byteEnd = Math.min(totalSize - 1, Math.floor((endTime / dur) * totalSize));
+    } else {
+      byteStart = Math.max(0, Math.floor(startTime * bytesPerSec));
+      byteEnd = Math.min(totalSize - 1, Math.floor(endTime * bytesPerSec));
+    }
+
+    if (byteEnd <= byteStart) {
+      byteEnd = Math.min(totalSize - 1, byteStart + Math.floor(previewDuration * bytesPerSec));
+    }
+
+    const previewWindowSize = (byteEnd - byteStart) + 1;
+
     const range = req.headers.range;
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10) || 0;
-      let end = parts[1] ? parseInt(parts[1], 10) : previewLimit - 1;
+      const clientReqStart = parseInt(parts[0], 10) || 0;
+      const streamStart = byteStart + clientReqStart;
 
-      if (start >= previewLimit) {
-        res.status(416).set('Content-Range', `bytes */${previewLimit}`).end();
+      if (streamStart > byteEnd) {
+        res.status(416).set('Content-Range', `bytes */${previewWindowSize}`).end();
         return;
       }
 
-      if (end >= previewLimit) {
-        end = previewLimit - 1;
+      let clientReqEnd = parts[1] ? parseInt(parts[1], 10) : previewWindowSize - 1;
+      let streamEnd = byteStart + clientReqEnd;
+      if (streamEnd > byteEnd) {
+        streamEnd = byteEnd;
       }
 
-      const chunkSize = (end - start) + 1;
-      const fileStream = fs.createReadStream(filePath, { start, end });
+      const chunkSize = (streamEnd - streamStart) + 1;
+      const fileStream = fs.createReadStream(filePath, { start: streamStart, end: streamEnd });
 
       res.writeHead(206, {
-        'Content-Range': `bytes ${start}-${end}/${previewLimit}`,
+        'Content-Range': `bytes ${clientReqStart}-${clientReqStart + chunkSize - 1}/${previewWindowSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunkSize,
         'Content-Type': contentType,
@@ -272,12 +363,12 @@ router.get('/:id/preview', async (req, res) => {
       fileStream.pipe(res);
     } else {
       res.writeHead(200, {
-        'Content-Length': previewLimit,
+        'Content-Length': previewWindowSize,
         'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'no-store, must-revalidate',
       });
-      fs.createReadStream(filePath, { start: 0, end: previewLimit - 1 }).pipe(res);
+      fs.createReadStream(filePath, { start: byteStart, end: byteEnd }).pipe(res);
     }
   } catch (err) {
     console.error('[products] GET /:id/preview error:', err);
@@ -288,7 +379,16 @@ router.get('/:id/preview', async (req, res) => {
 /* ── PUT /api/products/:id — protected (admin configure product) ── */
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const { productEnabled, price, productDescription } = req.body;
+    const {
+      productEnabled,
+      price,
+      productDescription,
+      previewEnabled,
+      previewTrackId,
+      previewStartTime,
+      previewEndTime,
+      previewDuration,
+    } = req.body;
 
     const { rows: current } = await pool.query('SELECT * FROM records WHERE id = $1', [req.params.id]);
     if (!current.length) return res.status(404).json({ error: 'Record not found.' });
@@ -306,20 +406,37 @@ router.put('/:id', authenticate, async (req, res) => {
       }
     }
 
-    const newPrice = Math.max(0, Number(price || record.product_price || 0));
+    const newPrice = Math.max(0, Number(price !== undefined ? price : record.product_price || 0));
+    const newDesc = productDescription !== undefined ? productDescription : record.product_description;
+
+    const newPreviewEnabled = previewEnabled !== undefined ? Boolean(previewEnabled) : (record.preview_enabled !== false);
+    const newPreviewTrackId = previewTrackId !== undefined ? (previewTrackId || null) : record.preview_track_id;
+    const newPreviewStartTime = previewStartTime !== undefined ? Math.max(0, Number(previewStartTime)) : Number(record.preview_start_time || 0);
+    const newPreviewEndTime = previewEndTime !== undefined ? Math.max(newPreviewStartTime + 1, Number(previewEndTime)) : Number(record.preview_end_time || 30);
+    const newPreviewDuration = previewDuration !== undefined ? Math.max(1, Number(previewDuration)) : (newPreviewEndTime - newPreviewStartTime);
 
     const { rows: updated } = await pool.query(
       `UPDATE records
        SET product_enabled     = $1,
            product_price       = $2,
            product_description = $3,
+           preview_enabled     = $4,
+           preview_track_id    = $5,
+           preview_start_time  = $6,
+           preview_end_time    = $7,
+           preview_duration    = $8,
            product_updated_at  = NOW()
-       WHERE id = $4
+       WHERE id = $9
        RETURNING *`,
       [
         wantsEnabled,
         newPrice,
-        productDescription !== undefined ? productDescription : record.product_description,
+        newDesc,
+        newPreviewEnabled,
+        newPreviewTrackId,
+        newPreviewStartTime,
+        newPreviewEndTime,
+        newPreviewDuration,
         req.params.id
       ]
     );
@@ -329,7 +446,8 @@ router.put('/:id', authenticate, async (req, res) => {
       [req.params.id]
     );
 
-    res.json(rowToProduct(updated[0], trackRows.rows));
+    const globalPreviewDur = await getPreviewDuration();
+    res.json(rowToProduct(updated[0], trackRows.rows, globalPreviewDur));
   } catch (err) {
     console.error('[products] PUT /:id error:', err);
     res.status(500).json({ error: 'Failed to update product.' });
@@ -376,7 +494,8 @@ router.post('/:id/generate-zip', authenticate, async (req, res) => {
       ]
     );
 
-    res.json(rowToProduct(updated[0], tracks));
+    const previewDuration = await getPreviewDuration();
+    res.json(rowToProduct(updated[0], tracks, previewDuration));
   } catch (err) {
     console.error('[products] generate-zip error:', err);
     res.status(500).json({ error: err.message || 'Failed to generate album ZIP.' });
@@ -391,18 +510,34 @@ router.post('/:id/upload-zip', authenticate, uploadZip.single('productZipFile'),
     }
 
     const { rows: records } = await pool.query('SELECT * FROM records WHERE id = $1', [req.params.id]);
-    if (!records.length) return res.status(404).json({ error: 'Record not found.' });
+    if (!records.length) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Record not found.' });
+    }
 
     const record   = records[0];
     const filePath = req.file.path;
-    const stats    = fs.statSync(filePath);
 
-    // Calculate SHA-256 hash of uploaded file
-    const fileBuffer = fs.readFileSync(filePath);
-    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    // Validate ZIP magic header
+    if (!verifyZipMagic(filePath)) {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return res.status(400).json({ error: 'Uploaded file is not a valid ZIP archive.' });
+    }
+
+    // Safely promote validated upload to album.zip
+    const finalPath = path.join(path.dirname(filePath), 'album.zip');
+    if (filePath !== finalPath) {
+      if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+      fs.renameSync(filePath, finalPath);
+    }
+
+    const stats = fs.statSync(finalPath);
+
+    // Calculate SHA-256 hash streamingly (memory safe for 1GB+)
+    const hash = await getFileSha256(finalPath);
 
     const fileName = req.file.originalname || `${record.title}.zip`;
-    const fileId   = uuid();
+    const fileId   = crypto.randomUUID ? crypto.randomUUID() : `zip-${Date.now()}`;
 
     const { rows: updated } = await pool.query(
       `UPDATE records
@@ -414,7 +549,7 @@ router.post('/:id/upload-zip', authenticate, uploadZip.single('productZipFile'),
            product_updated_at = NOW()
        WHERE id = $6
        RETURNING *`,
-      [fileId, fileName, stats.size, hash, filePath, req.params.id]
+      [fileId, fileName, stats.size, hash, finalPath, req.params.id]
     );
 
     const { rows: tracks } = await pool.query(
@@ -422,10 +557,11 @@ router.post('/:id/upload-zip', authenticate, uploadZip.single('productZipFile'),
       [req.params.id]
     );
 
-    res.json(rowToProduct(updated[0], tracks));
+    const previewDuration = await getPreviewDuration();
+    res.json(rowToProduct(updated[0], tracks, previewDuration));
   } catch (err) {
     console.error('[products] upload-zip error:', err);
-    res.status(500).json({ error: 'Failed to upload product ZIP.' });
+    res.status(500).json({ error: 'Failed to upload product ZIP: ' + err.message });
   }
 });
 

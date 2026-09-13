@@ -14,7 +14,7 @@ function authenticate(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'canopus-secret-key');
     req.user = payload;
     next();
   } catch {

@@ -153,50 +153,52 @@ export default function ProductsPage() {
                     )}
 
                     {/* Limited Audio Preview */}
-                    <div className="product-card__preview">
-                      <button
-                        type="button"
-                        className={`btn-preview product-card__preview-btn${isPreviewPlaying ? ' is-playing' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (audioState?.isPlaying) audioActions.pause();
-                          togglePreview(product.id, product.firstTrackId || product.tracks?.[0]?.id, product.previewDuration);
-                        }}
-                        aria-label={isPreviewPlaying ? `Pause preview of ${product.title}` : `Play preview of ${product.title}`}
-                      >
-                        <span className="btn-preview__icon">
-                          {isPreviewLoading ? (
-                            <span className="preview-spinner" />
-                          ) : isPreviewPlaying ? (
-                            <IconPause />
-                          ) : (
-                            <IconPlay />
-                          )}
-                        </span>
-                        <span className="btn-preview__label">
-                          {isPreviewLoading ? (
-                            'Loading preview…'
-                          ) : isPreviewPlaying ? (
-                            `Preview ${formatTime(previewCurTime)} / ${formatTime(previewMaxTime)}`
-                          ) : (
-                            `Play Preview (${product.previewDuration || 30}s)`
-                          )}
-                        </span>
-                      </button>
+                    {product.previewEnabled !== false && (
+                      <div className="product-card__preview">
+                        <button
+                          type="button"
+                          className={`btn-preview product-card__preview-btn${isPreviewPlaying ? ' is-playing' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (audioState?.isPlaying) audioActions.pause();
+                            togglePreview(product.id, product.previewTrackId || product.firstTrackId || product.tracks?.[0]?.id, product.previewDuration);
+                          }}
+                          aria-label={isPreviewPlaying ? `Pause preview of ${product.title}` : `Play preview of ${product.title}`}
+                        >
+                          <span className="btn-preview__icon">
+                            {isPreviewLoading ? (
+                              <span className="preview-spinner" />
+                            ) : isPreviewPlaying ? (
+                              <IconPause />
+                            ) : (
+                              <IconPlay />
+                            )}
+                          </span>
+                          <span className="btn-preview__label">
+                            {isPreviewLoading ? (
+                              'Loading preview…'
+                            ) : isPreviewPlaying ? (
+                              `Preview ${formatTime(previewCurTime)} / ${formatTime(previewMaxTime)}`
+                            ) : (
+                              `Play Preview${product.previewTrack?.title ? `: ${product.previewTrack.title}` : ''} (${product.previewDuration || 30}s)`
+                            )}
+                          </span>
+                        </button>
 
-                      {isPreviewPlaying && (
-                        <div className="product-card__preview-progress-track">
-                          <div
-                            className="product-card__preview-progress-bar"
-                            style={{ width: `${previewPercent}%` }}
-                          />
-                        </div>
-                      )}
+                        {isPreviewPlaying && (
+                          <div className="product-card__preview-progress-track">
+                            <div
+                              className="product-card__preview-progress-bar"
+                              style={{ width: `${previewPercent}%` }}
+                            />
+                          </div>
+                        )}
 
-                      {isThisPreview && activePreview.error && (
-                        <p className="product-card__preview-error">{activePreview.error}</p>
-                      )}
-                    </div>
+                        {isThisPreview && activePreview.error && (
+                          <p className="product-card__preview-error">{activePreview.error}</p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="product-card__footer">
                       <div className="product-card__price-wrap">

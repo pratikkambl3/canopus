@@ -58,6 +58,11 @@ async function initDb() {
     ALTER TABLE records ADD COLUMN IF NOT EXISTS digital_file_path TEXT DEFAULT '';
     ALTER TABLE records ADD COLUMN IF NOT EXISTS product_created_at TIMESTAMPTZ DEFAULT NOW();
     ALTER TABLE records ADD COLUMN IF NOT EXISTS product_updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_enabled BOOLEAN DEFAULT TRUE;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_track_id TEXT DEFAULT '';
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_start_time INTEGER DEFAULT 0;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_end_time INTEGER DEFAULT 30;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_duration INTEGER DEFAULT 30;
   `);
 
   // 2. Tracks table (Individual songs inside a record)
@@ -73,6 +78,9 @@ async function initDb() {
       audio_url     TEXT        DEFAULT '',
       artwork_url   TEXT        DEFAULT '',
       track_number  INTEGER     DEFAULT 1,
+      preview_start_time INTEGER DEFAULT 0,
+      preview_end_time   INTEGER DEFAULT 30,
+      preview_duration   INTEGER DEFAULT 30,
       created_at    TIMESTAMPTZ DEFAULT NOW(),
       updated_at    TIMESTAMPTZ DEFAULT NOW()
     );
@@ -80,6 +88,9 @@ async function initDb() {
 
   await pool.query(`
     ALTER TABLE tracks ADD COLUMN IF NOT EXISTS artwork_url TEXT DEFAULT '';
+    ALTER TABLE tracks ADD COLUMN IF NOT EXISTS preview_start_time INTEGER DEFAULT 0;
+    ALTER TABLE tracks ADD COLUMN IF NOT EXISTS preview_end_time INTEGER DEFAULT 30;
+    ALTER TABLE tracks ADD COLUMN IF NOT EXISTS preview_duration INTEGER DEFAULT 30;
     ALTER TABLE tracks ALTER COLUMN bpm DROP DEFAULT;
     UPDATE tracks SET bpm = NULL WHERE bpm = 0;
   `);
@@ -186,6 +197,31 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_order_audit_logs_order_id ON order_audit_logs(order_id);
   `);
+
+  // 7. Admin Users table (Database-driven credentials)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id            TEXT        PRIMARY KEY,
+      email         TEXT        NOT NULL UNIQUE,
+      password_hash TEXT        NOT NULL,
+      role          TEXT        DEFAULT 'admin',
+      created_at    TIMESTAMPTZ DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  try {
+    const bcrypt = require('bcryptjs');
+    const adminPassword = process.env.ADMIN_PASSWORD || 'canopus_admin_2024';
+    const defaultHash = await bcrypt.hash(adminPassword, 10);
+    await pool.query(`
+      INSERT INTO admin_users (id, email, password_hash, role)
+      VALUES ('admin-01', $2, $1, 'admin')
+      ON CONFLICT (email) DO UPDATE SET password_hash = $1, updated_at = NOW()
+    `, [defaultHash, (process.env.ADMIN_EMAIL || 'admin@canopus.local').toLowerCase()]);
+  } catch (err) {
+    console.warn('[db] Admin user seed notice:', err.message);
+  }
 }
 
 module.exports = { pool, initDb };

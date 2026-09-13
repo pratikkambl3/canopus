@@ -67,9 +67,9 @@ export default function ProductDetailsPage() {
 
   const tracks = product.tracks || [];
   const inCart = isInCart(product.id);
-  const firstTrackId = product.firstTrackId || tracks[0]?.id || null;
+  const previewTrackId = product.previewTrackId || product.firstTrackId || tracks[0]?.id || null;
 
-  const isHeroPreview = activePreview.productId === product.id && (!activePreview.trackId || activePreview.trackId === firstTrackId);
+  const isHeroPreview = activePreview.productId === product.id && (!activePreview.trackId || activePreview.trackId === previewTrackId);
   const isHeroPlaying = isHeroPreview && activePreview.isPlaying;
   const isHeroLoading = isHeroPreview && activePreview.loading;
   const heroCurTime = isHeroPreview ? activePreview.currentTime : 0;
@@ -77,7 +77,7 @@ export default function ProductDetailsPage() {
 
   const handleHeroPreview = () => {
     if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, firstTrackId, product.previewDuration);
+    togglePreview(product.id, previewTrackId, product.previewDuration);
   };
 
   const handleTrackPreview = (trackId, e) => {
@@ -141,7 +141,7 @@ export default function ProductDetailsPage() {
           </div>
 
           <div className="product-hero__actions">
-            {tracks.length > 0 && (
+            {tracks.length > 0 && product.previewEnabled !== false && (
               <button
                 type="button"
                 className={`btn-preview product-hero__preview-btn${isHeroPlaying ? ' is-playing' : ''}`}
@@ -162,7 +162,7 @@ export default function ProductDetailsPage() {
                     ? 'Loading preview…'
                     : isHeroPlaying
                     ? `Preview ${formatTime(heroCurTime)} / ${formatTime(heroMaxTime)}`
-                    : `Play Preview (${product.previewDuration || 30}s)`}
+                    : `Play Preview${product.previewTrack?.title ? `: ${product.previewTrack.title}` : ''} (${product.previewDuration || 30}s)`}
                 </span>
               </button>
             )}

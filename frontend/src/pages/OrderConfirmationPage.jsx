@@ -16,6 +16,14 @@ export default function OrderConfirmationPage() {
   const [loading, setLoading] = useState(!order);
   const [refreshing, setRefreshing] = useState(false);
 
+  const formatBytes = (bytes) => {
+    if (!bytes || bytes === 0) return '';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   const fetchStatus = () => {
     setRefreshing(true);
     getOrder(orderId)
@@ -121,11 +129,57 @@ export default function OrderConfirmationPage() {
           </div>
         </div>
 
+        {/* Direct Downloads (for verified paid orders) */}
+        {isPaid && order.downloads && order.downloads.length > 0 && (
+          <div className="confirmation-downloads" style={{ margin: '24px 0', textAlign: 'left' }}>
+            <h3 style={{ fontSize: 15, marginBottom: 12, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Download Your Music
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {order.downloads.map(dl => (
+                <div
+                  key={dl.downloadUrl}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    padding: '16px 20px',
+                    background: 'var(--ivory-mid, #f4f3f0)',
+                    border: '1px solid var(--border-subtle, #e5e3dc)',
+                    borderRadius: 4,
+                  }}
+                >
+                  <div>
+                    <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {dl.title}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+                      {dl.fileName} {dl.fileSize ? `· ${formatBytes(dl.fileSize)}` : ''} · 7-day secure access
+                    </p>
+                  </div>
+                  <a
+                    href={dl.downloadUrl}
+                    className="btn-primary"
+                    style={{ padding: '8px 20px', fontSize: 13, textDecoration: 'none' }}
+                    download={dl.fileName}
+                  >
+                    Download Album (.ZIP)
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Status explanation */}
         <div className="confirmation-card__notice">
           {isPaid ? (
             <p>
-              Please check your inbox (and spam folder) for the secure download link. The link remains active for 7 days.
+              {order.downloads && order.downloads.length > 0
+                ? 'You can download your album ZIP above. A backup copy of the link has also been sent to your email.'
+                : 'Please check your inbox (and spam folder) for the secure download link. The link remains active for 7 days.'}
             </p>
           ) : isRejected ? (
             <p>
@@ -133,7 +187,7 @@ export default function OrderConfirmationPage() {
             </p>
           ) : (
             <p>
-              Our team manually verifies every UPI reference with our bank statement. Once approved, the album ZIP download link will be dispatched automatically to your email.
+              Our team manually verifies every UPI reference with our bank statement. Once approved, the album ZIP download link will appear here and be dispatched to your email.
             </p>
           )}
         </div>

@@ -220,6 +220,28 @@ router.get('/:id', async (req, res) => {
       [order.id]
     );
 
+    let downloads = [];
+    if (order.payment_status === 'PAID') {
+      const { rows: tokens } = await pool.query(
+        `SELECT dt.token, dt.album_id, dt.download_count, dt.max_downloads, dt.expires_at,
+                r.title, r.digital_file_name, r.digital_file_size
+         FROM download_tokens dt
+         JOIN records r ON r.id = dt.album_id
+         WHERE dt.order_id = $1`,
+        [order.id]
+      );
+      downloads = tokens.map(t => ({
+        albumId: t.album_id,
+        title: t.title || t.album_title_snapshot,
+        fileName: t.digital_file_name || `${t.title || 'album'}.zip`,
+        fileSize: Number(t.digital_file_size || 0),
+        downloadUrl: `/api/download/${t.token}`,
+        downloadCount: t.download_count,
+        maxDownloads: t.max_downloads,
+        expiresAt: t.expires_at,
+      }));
+    }
+
     res.json({
       ...order,
       items: items.map(i => ({
@@ -227,6 +249,7 @@ router.get('/:id', async (req, res) => {
         title:   i.album_title_snapshot,
         price:   Number(i.album_price_snapshot),
       })),
+      downloads,
     });
   } catch (err) {
     console.error('[orders] GET /:id error:', err);
@@ -311,11 +334,35 @@ router.post('/:id/approve', authenticate, async (req, res) => {
     const itemsWithTokens = [];
 
     for (const item of items) {
-      if (!item.digital_file_path) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          error: `Cannot deliver order: digital file is missing for album "${item.album_title_snapshot}".`
-        });
+      let filePath = item.digital_file_path;
+
+      // If digital file is missing on disk, auto-generate from tracks if available
+      if (!filePath || !fs.existsSync(filePath)) {
+        const { rows: tracks } = await client.query(
+          'SELECT * FROM tracks WHERE record_id = $1 ORDER BY track_number ASC',
+          [item.album_id]
+        );
+        if (tracks.length > 0) {
+          const { generateAlbumZip } = require('../services/zipService');
+          const zipMeta = await generateAlbumZip({ id: item.album_id, title: item.current_title || item.album_title_snapshot }, tracks);
+          filePath = zipMeta.filePath;
+          await client.query(
+            `UPDATE records
+             SET digital_file_id   = $1,
+                 digital_file_name = $2,
+                 digital_file_size = $3,
+                 digital_file_hash = $4,
+                 digital_file_path = $5,
+                 product_updated_at = NOW()
+             WHERE id = $6`,
+            [zipMeta.fileId, zipMeta.fileName, zipMeta.fileSize, zipMeta.fileHash, zipMeta.filePath, item.album_id]
+          );
+        } else {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: `Cannot deliver order: digital file is missing and no tracks exist for album "${item.album_title_snapshot}".`
+          });
+        }
       }
 
       // Check if token already exists
@@ -340,7 +387,7 @@ router.post('/:id/approve', authenticate, async (req, res) => {
             order.id,
             item.album_id,
             token,
-            item.digital_file_path,
+            filePath,
             10,
             expiresAt,
           ]

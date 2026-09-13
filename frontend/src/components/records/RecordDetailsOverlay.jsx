@@ -235,13 +235,6 @@ export default function RecordDetailsOverlay({ record, onClose }) {
                 </>
               )}
             </dl>
-
-            {record.description && (
-              <>
-                <p className="album-details__heading album-details__heading--about">ABOUT THE ALBUM</p>
-                <p className="album-details__about">{record.description}</p>
-              </>
-            )}
           </aside>
         </section>
 

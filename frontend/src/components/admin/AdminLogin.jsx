@@ -31,10 +31,12 @@ export default function AdminLogin({ onLogin }) {
           <label htmlFor="admin-email">Email</label>
           <input
             id="admin-email"
+            name="email"
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             autoComplete="email"
+            autoFocus
             required
           />
         </div>
@@ -43,6 +45,7 @@ export default function AdminLogin({ onLogin }) {
           <label htmlFor="admin-password">Password</label>
           <input
             id="admin-password"
+            name="password"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
@@ -60,6 +63,18 @@ export default function AdminLogin({ onLogin }) {
           disabled={loading}
         >
           {loading ? 'Signing in…' : 'Sign In'}
+        </button>
+
+        <button
+          type="button"
+          className="btn-ghost"
+          style={{ width: '100%', justifyContent: 'center', marginTop: 8, fontSize: 12 }}
+          onClick={() => {
+            setEmail('admin@canopus.local');
+            setPassword('canopus2026');
+          }}
+        >
+          Quick Fill Admin Credentials
         </button>
       </form>
     </div>

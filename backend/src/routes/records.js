@@ -75,6 +75,12 @@ function rowToRecord(r, tracks = []) {
     product_price:      Number(r.product_price != null ? r.product_price : 0),
     productPrice:       Number(r.product_price != null ? r.product_price : 0),
     productDescription: r.product_description || r.description || '',
+    // Preview fields
+    previewEnabled:     r.preview_enabled !== false,
+    previewTrackId:     r.preview_track_id || (tracks.length > 0 ? tracks[0].id : null),
+    previewStartTime:   Number(r.preview_start_time || 0),
+    previewEndTime:     Number(r.preview_end_time || 30),
+    previewDuration:    Number(r.preview_duration || (Number(r.preview_end_time || 30) - Number(r.preview_start_time || 0)) || 30),
     digitalFile: {
       exists:    hasZip,
       fileName:  r.digital_file_name || `${r.title}.zip`,
@@ -248,7 +254,8 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
     const { id } = req.params;
     const {
       title, artist, description, genre, releaseDate, featured, tracksData,
-      price, productPrice, productDescription, productEnabled
+      price, productPrice, productDescription, productEnabled,
+      previewEnabled, previewTrackId, previewStartTime, previewEndTime, previewDuration
     } = req.body;
 
     const existing = await client.query('SELECT * FROM records WHERE id = $1', [id]);
@@ -261,11 +268,19 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
     const updatedArtist = artist !== undefined ? artist : prev.artist;
     const updatedEnabled = productEnabled !== undefined ? (productEnabled === 'true' || productEnabled === true) : prev.product_enabled;
 
+    const updatedPreviewEnabled = previewEnabled !== undefined ? (previewEnabled === 'true' || previewEnabled === true) : (prev.preview_enabled !== false);
+    const updatedPreviewTrackId = previewTrackId !== undefined ? (previewTrackId || null) : prev.preview_track_id;
+    const updatedPreviewStartTime = previewStartTime !== undefined ? Math.max(0, Number(previewStartTime)) : Number(prev.preview_start_time || 0);
+    const updatedPreviewEndTime = previewEndTime !== undefined ? Math.max(updatedPreviewStartTime + 1, Number(previewEndTime)) : Number(prev.preview_end_time || 30);
+    const updatedPreviewDuration = previewDuration !== undefined ? Math.max(1, Number(previewDuration)) : (updatedPreviewEndTime - updatedPreviewStartTime);
+
     const { rows: recordRows } = await client.query(
       `UPDATE records SET
          title = $1, artist = $2, description = $3, genre = $4, release_date = $5, featured = $6,
-         artwork_url = $7, product_price = $8, product_description = $9, product_enabled = $10, updated_at = NOW()
-       WHERE id = $11
+         artwork_url = $7, product_price = $8, product_description = $9, product_enabled = $10,
+         preview_enabled = $11, preview_track_id = $12, preview_start_time = $13, preview_end_time = $14, preview_duration = $15,
+         updated_at = NOW()
+       WHERE id = $16
        RETURNING *`,
       [
         title ?? prev.title,
@@ -278,6 +293,11 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
         updatedPrice,
         productDescription !== undefined ? productDescription : prev.product_description,
         updatedEnabled,
+        updatedPreviewEnabled,
+        updatedPreviewTrackId,
+        updatedPreviewStartTime,
+        updatedPreviewEndTime,
+        updatedPreviewDuration,
         id,
       ]
     );
