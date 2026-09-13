@@ -17,12 +17,20 @@ const { pool } = require('../db');
 const { authenticate } = require('../middleware/auth');
 const emailService = require('../services/emailService');
 
-/**
- * Generates an elegant, unique order number e.g. CAN-84920
- */
 function generateOrderNumber() {
   const rand = Math.floor(10000 + Math.random() * 90000);
   return `CAN-${rand}`;
+}
+
+function getBaseUrl(req) {
+  const origin = req.get('origin');
+  if (origin && !origin.includes('undefined')) return origin;
+  const host = req.get('host');
+  if (host) {
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+    return `${proto}://${host}`;
+  }
+  return process.env.APP_URL || process.env.PUBLIC_URL || 'http://localhost:3000';
 }
 
 /* ── POST /api/orders — public (create order) ── */
@@ -431,7 +439,8 @@ router.post('/:id/approve', authenticate, async (req, res) => {
     const updatedOrder = updatedOrders[0];
 
     // Send email with download links
-    emailService.sendPaymentApprovedEmail(updatedOrder, itemsWithTokens).catch(err => {
+    const baseUrl = getBaseUrl(req);
+    emailService.sendPaymentApprovedEmail(updatedOrder, itemsWithTokens, baseUrl).catch(err => {
       console.warn('[orders] Delivery email failed:', err.message);
     });
 
@@ -513,7 +522,8 @@ router.post('/:id/resend-email', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'No download tokens found for this order.' });
     }
 
-    await emailService.sendPaymentApprovedEmail(order, tokens);
+    const baseUrl = getBaseUrl(req);
+    await emailService.sendPaymentApprovedEmail(order, tokens, baseUrl);
 
     await pool.query(
       `INSERT INTO order_audit_logs (id, order_id, action, performed_by, details)

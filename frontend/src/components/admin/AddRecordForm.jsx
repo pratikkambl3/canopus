@@ -268,33 +268,6 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
         </div>
       </div>
 
-      {/* Digital Store Price & Featured */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, alignItems: 'center' }}>
-        <div className="form-field">
-          <label htmlFor={`${uid}-price`}>Digital Store Price (₹ INR)</label>
-          <input
-            id={`${uid}-price`}
-            type="number"
-            min="0"
-            step="1"
-            value={form.price}
-            onChange={set('price')}
-            placeholder="e.g. 199"
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 18 }}>
-          <input
-            type="checkbox"
-            id={`${uid}-featured`}
-            checked={form.featured}
-            onChange={set('featured')}
-            style={{ width: 16, height: 16 }}
-          />
-          <label htmlFor={`${uid}-featured`} style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
-            Featured record
-          </label>
-        </div>
-      </div>
 
       {/* ── Tracks ── */}
       <h3 className="admin-section-heading">Tracks</h3>

@@ -49,8 +49,43 @@ router.get('/:token', async (req, res) => {
       return res.status(403).send(`Maximum download limit of ${tokenRow.max_downloads} reached for this link.`);
     }
 
-    // 4. Verify file exists on disk
-    const filePath = tokenRow.file_path;
+    // 4. Verify file exists on disk (with auto-generation fallback)
+    let filePath = tokenRow.file_path;
+    if (!filePath || !fs.existsSync(filePath)) {
+      console.warn(`[download] File missing on disk for token ${token}: ${filePath}. Attempting dynamic generation...`);
+      try {
+        const { rows: tracks } = await pool.query(
+          'SELECT * FROM tracks WHERE record_id = $1 ORDER BY track_number ASC',
+          [tokenRow.album_id]
+        );
+        if (tracks.length > 0) {
+          const { generateAlbumZip } = require('../services/zipService');
+          const zipMeta = await generateAlbumZip(
+            { id: tokenRow.album_id, title: tokenRow.album_title || 'Album' },
+            tracks
+          );
+          filePath = zipMeta.filePath;
+          await pool.query(
+            `UPDATE download_tokens SET file_path = $1 WHERE id = $2`,
+            [filePath, tokenRow.id]
+          );
+          await pool.query(
+            `UPDATE records
+             SET digital_file_id   = $1,
+                 digital_file_name = $2,
+                 digital_file_size = $3,
+                 digital_file_hash = $4,
+                 digital_file_path = $5,
+                 product_updated_at = NOW()
+             WHERE id = $6`,
+            [zipMeta.fileId, zipMeta.fileName, zipMeta.fileSize, zipMeta.fileHash, zipMeta.filePath, tokenRow.album_id]
+          );
+        }
+      } catch (genErr) {
+        console.error('[download] Failed to dynamically generate ZIP:', genErr);
+      }
+    }
+
     if (!filePath || !fs.existsSync(filePath)) {
       console.error(`[download] File missing on disk for token ${token}:`, filePath);
       return res.status(404).send('Digital file is temporarily unavailable. Our team has been notified.');
@@ -83,7 +118,9 @@ router.get('/:token', async (req, res) => {
     );
 
     // 6. Securely stream the existing ZIP file
-    const downloadName = tokenRow.digital_file_name || `${tokenRow.album_title || 'album'}.zip`;
+    const rawName = tokenRow.digital_file_name || `${tokenRow.album_title || 'album'}.zip`;
+    const downloadName = rawName.replace(/["'\\]/g, '');
+    res.setHeader('Content-Type', 'application/zip');
     res.download(filePath, downloadName, (err) => {
       if (err && !res.headersSent) {
         console.error('[download] Stream error:', err);

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { deleteRecord } from '../../services/recordsService';
-import { updateProduct, getPreviewSettings, updatePreviewSettings } from '../../services/adminStoreService';
+import { updateProduct } from '../../services/adminStoreService';
 import { signOut } from '../../services/authService';
 import AddRecordForm from './AddRecordForm';
 import ProductManagerModal from './ProductManagerModal';
@@ -13,39 +13,12 @@ export default function AdminDashboard({ records, onRecordsChange }) {
   const [editRecord, setEditRecord]       = useState(null);
   const [deleting, setDeleting]           = useState(null);
   const [productRecord, setProductRecord] = useState(null); // record selected for ProductManagerModal
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
 
   // Dynamic inline price editing
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [editingPriceVal, setEditingPriceVal] = useState('');
   const [savingPriceId, setSavingPriceId]   = useState(null);
-
-  // Global preview duration setting
-  const [previewDuration, setPreviewDuration] = useState(30);
-  const [savingDuration, setSavingDuration]   = useState(false);
-  const [durationNotice, setDurationNotice]   = useState(null);
-
-  useEffect(() => {
-    getPreviewSettings().then(data => {
-      if (data?.previewDurationSeconds) {
-        setPreviewDuration(data.previewDurationSeconds);
-      }
-    }).catch(console.error);
-  }, []);
-
-  const handleSavePreviewDuration = async () => {
-    setSavingDuration(true);
-    setDurationNotice(null);
-    try {
-      const res = await updatePreviewSettings(Number(previewDuration));
-      setPreviewDuration(res.previewDurationSeconds);
-      setDurationNotice('Preview duration updated successfully.');
-      setTimeout(() => setDurationNotice(null), 4000);
-    } catch (err) {
-      alert(err.message || 'Failed to update preview duration.');
-    } finally {
-      setSavingDuration(false);
-    }
-  };
 
 
   const handleDelete = async (id) => {
@@ -139,6 +112,11 @@ export default function AdminDashboard({ records, onRecordsChange }) {
               + Add Record
             </button>
           )}
+          {activeTab === 'products' && (
+            <button className="btn-primary" onClick={() => setShowAddProductModal(true)}>
+              + Add Product
+            </button>
+          )}
           <button className="btn-ghost" onClick={signOut}>
             Sign Out
           </button>
@@ -197,7 +175,6 @@ export default function AdminDashboard({ records, onRecordsChange }) {
                   <h4>{record.title}</h4>
                   <p>
                     {record.genre} · {record.tracks?.length || 0} tracks
-                    {(record.price || record.product_price) ? ` · ₹${record.price || record.product_price}` : ''}
                   </p>
                 </div>
                 <div className="admin-track-row__actions">
@@ -219,45 +196,21 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {/* TAB 2: PRODUCTS STORE */}
       {activeTab === 'products' && (
         <div className="admin-tab-content">
-          <div className="admin-preview-settings-bar">
-            <div className="admin-preview-settings-info">
-              <h4>Audio Preview Duration</h4>
-              <p>Configure maximum sample listening duration for digital store albums (seconds).</p>
+          <div className="admin-products-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12, paddingBottom: 16, borderBottom: '1px solid var(--border-subtle, #e5e3dc)' }}>
+            <div className="admin-products-intro" style={{ margin: 0, flex: 1, minWidth: 260 }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Manage digital album pricing, package audio files into downloadable ZIPs, and toggle store availability.
+                Use <strong>+ Add Product</strong> to publish library albums to the digital storefront.
+              </p>
             </div>
-            <div className="admin-preview-settings-control">
-              <input
-                type="number"
-                min="5"
-                max="300"
-                step="5"
-                className="form-input preview-dur-input"
-                style={{ width: 80, padding: '6px 10px' }}
-                value={previewDuration}
-                onChange={e => setPreviewDuration(e.target.value)}
-              />
-              <span className="unit-label" style={{ fontSize: 13, color: 'var(--text-muted)' }}>sec</span>
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ padding: '6px 14px', fontSize: 13 }}
-                onClick={handleSavePreviewDuration}
-                disabled={savingDuration}
-              >
-                {savingDuration ? 'Saving…' : 'Save Duration'}
-              </button>
-            </div>
-            {durationNotice && (
-              <span className="preview-settings-notice" style={{ color: '#2e7d32', fontSize: 13, fontWeight: 500 }}>
-                ✓ {durationNotice}
-              </span>
-            )}
-          </div>
-
-          <div className="admin-products-intro">
-            <p>
-              Manage digital album pricing, package audio files into downloadable ZIPs, and toggle store availability.
-              You can quick-edit the price directly below or open <strong>Configure Product & ZIP</strong> for complete settings.
-            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ padding: '8px 20px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setShowAddProductModal(true)}
+            >
+              + Add Product
+            </button>
           </div>
 
           {records.length === 0 ? (
@@ -428,6 +381,123 @@ export default function AdminDashboard({ records, onRecordsChange }) {
           onClose={handleProductModalClose}
           onUpdated={onRecordsChange}
         />
+      )}
+
+      {/* Add Product Modal (choose existing record or create new) */}
+      {showAddProductModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAddProductModal(false); }}>
+          <div className="modal" style={{ maxWidth: 650, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal__header">
+              <div>
+                <span className="modal__eyebrow">DIGITAL STORE</span>
+                <h2 className="modal__title">Add Product to Store</h2>
+              </div>
+              <button className="modal__close" onClick={() => setShowAddProductModal(false)} aria-label="Close">×</button>
+            </div>
+            
+            <div className="modal__body" style={{ padding: '20px 0 8px' }}>
+              <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Select an existing album from your library to configure pricing and publish to the digital store, or create a brand new album.
+              </p>
+
+              {/* Option 1: Create brand new record */}
+              <div style={{
+                padding: '16px 20px',
+                background: 'var(--ivory-mid, #f4f3f0)',
+                border: '1px solid var(--border-subtle, #e5e3dc)',
+                borderRadius: 4,
+                marginBottom: 24,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 16,
+              }}>
+                <div>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Create Brand New Album
+                  </h4>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+                    Upload new artwork, audio tracks, and metadata into the catalog.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ whiteSpace: 'nowrap', padding: '8px 16px', fontSize: 12 }}
+                  onClick={() => {
+                    setShowAddProductModal(false);
+                    setEditRecord(null);
+                    setShowForm(true);
+                  }}
+                >
+                  + New Album
+                </button>
+              </div>
+
+              {/* Option 2: Select from records */}
+              <h4 style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+                Select From Existing Albums ({records.length})
+              </h4>
+
+              {records.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No records found in library.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto' }}>
+                  {records.map(r => {
+                    const isPublished = Boolean(r.productEnabled || r.product_enabled);
+                    return (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          border: '1px solid var(--border-subtle, #e5e3dc)',
+                          borderRadius: 4,
+                          background: isPublished ? 'rgba(42, 112, 64, 0.04)' : 'transparent',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {r.artworkUrl ? (
+                            <img src={r.artworkUrl} alt={r.title} style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: 2 }} />
+                          ) : (
+                            <div style={{ width: 42, height: 42, background: '#e5e3dc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>♫</div>
+                          )}
+                          <div>
+                            <strong style={{ fontSize: 14, color: 'var(--text-primary)', display: 'block' }}>{r.title}</strong>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                              {r.genre} · {r.tracks?.length || 0} tracks
+                              {isPublished ? ' · (Active in Store)' : ' · (Draft / Not Published)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={isPublished ? 'btn-secondary' : 'btn-primary'}
+                          style={{ padding: '6px 14px', fontSize: 12 }}
+                          onClick={() => {
+                            setShowAddProductModal(false);
+                            setProductRecord(r);
+                          }}
+                        >
+                          {isPublished ? 'Edit Product' : 'Add to Store'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="modal__footer" style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn-ghost" onClick={() => setShowAddProductModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
