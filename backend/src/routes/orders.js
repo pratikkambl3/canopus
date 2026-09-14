@@ -23,15 +23,46 @@ function generateOrderNumber() {
 }
 
 function getBaseUrl(req) {
+  // 1. Origin header (browser AJAX requests)
   const origin = req.get('origin');
-  if (origin && !origin.includes('undefined')) return origin;
-  const host = req.get('host');
+  if (origin && !origin.includes('undefined') && !origin.includes('localhost')) {
+    return origin.replace(/\/+$/, '');
+  }
+
+  // 2. Referer header (e.g. from admin panel or checkout page)
+  const referer = req.get('referer');
+  if (referer) {
+    try {
+      const url = new URL(referer);
+      if (!url.hostname.includes('localhost')) {
+        return `${url.protocol}//${url.host}`.replace(/\/+$/, '');
+      }
+    } catch (_) {}
+  }
+
+  // 3. X-Forwarded-Host or Host header (preserves :3000 from client)
+  const fwdHost = req.get('x-forwarded-host');
+  const host = fwdHost || req.get('host');
+  if (host && !host.includes('localhost')) {
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+    return `${proto}://${host}`.replace(/\/+$/, '');
+  }
+
+  // 4. Configured environment variable
+  const envUrl = process.env.APP_URL || process.env.PUBLIC_URL;
+  if (envUrl && !envUrl.includes('localhost')) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // 5. Fallback using host even if localhost
   if (host) {
     const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
-    return `${proto}://${host}`;
+    return `${proto}://${host}`.replace(/\/+$/, '');
   }
-  return process.env.APP_URL || process.env.PUBLIC_URL || 'http://localhost:3000';
+
+  return envUrl || 'http://localhost:3000';
 }
+
 
 /* ── POST /api/orders — public (create order) ── */
 router.post('/', async (req, res) => {
@@ -244,6 +275,7 @@ router.get('/:id', async (req, res) => {
         fileName: t.digital_file_name || `${t.title || 'album'}.zip`,
         fileSize: Number(t.digital_file_size || 0),
         downloadUrl: `/api/download/${t.token}`,
+        pageUrl: `/download/${t.token}`,
         downloadCount: t.download_count,
         maxDownloads: t.max_downloads,
         expiresAt: t.expires_at,

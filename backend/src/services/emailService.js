@@ -133,11 +133,12 @@ async function sendPaymentApprovedEmail(order, itemsWithTokens = [], reqBaseUrl 
   const base = reqBaseUrl || process.env.APP_URL || process.env.PUBLIC_URL || 'http://localhost:3000';
   const albumNames = itemsWithTokens.map(i => i.album_title_snapshot).join(', ');
   const subject = `Your CANOPUS Album Is Ready — Order #${order.order_number}`;
-  const orderUrl = `${base}/orders/${order.id}`;
+  const orderUrl = `${base}/order-confirmation/${order.id}`;
 
   const downloadBlocksText = itemsWithTokens.map(i => {
-    const link = `${base}/api/download/${i.token}`;
-    return `Album: ${i.album_title_snapshot}\nDirect Download Link: ${link}\n(Valid for 7 days · Up to 10 downloads)\n`;
+    const landingUrl = `${base}/download/${i.token}`;
+    const directUrl  = `${base}/api/download/${i.token}`;
+    return `Album: ${i.album_title_snapshot}\nDownload Page: ${landingUrl}\nDirect File Download: ${directUrl}\n(Valid for 7 days · Up to 10 downloads)\n`;
   }).join('\n');
 
   const text = `
@@ -151,10 +152,10 @@ Order Number: #${order.order_number}
 Albums:       ${albumNames}
 
 ${downloadBlocksText}
-Order Status & Downloads Page:
+Order Status & Receipt:
 ${orderUrl}
 
-Please save your ZIP file to your device. 
+Please save your ZIP file to your device (compatible with Mac, Windows, iOS & Android). 
 Thank you for supporting independent music on CANOPUS.
 
 CANOPUS
@@ -162,15 +163,23 @@ Timeless Music. Never Gets Old.
   `.trim();
 
   const downloadCardsHtml = itemsWithTokens.map(i => {
-    const link = `${base}/api/download/${i.token}`;
+    const landingUrl = `${base}/download/${i.token}`;
+    const directUrl  = `${base}/api/download/${i.token}`;
     return `
-      <div style="background: #F7F4F0; border: 1px solid #E8E2DA; padding: 20px; margin-bottom: 16px; border-radius: 2px;">
-        <h3 style="margin: 0 0 8px; font-family: 'Playfair Display', Georgia, serif; font-size: 16px; color: #1A1A1A;">${i.album_title_snapshot}</h3>
-        <p style="margin: 0 0 16px; font-size: 12px; color: #7A7A7A;">Format: ZIP Archive · High-Quality Audio & Artwork</p>
-        <a href="${link}" style="display: inline-block; background: #1A1A1A; color: #F7F4F0; text-decoration: none; padding: 12px 24px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;" target="_blank">
-          Download Album (.ZIP)
-        </a>
-        <p style="margin: 12px 0 0; font-size: 11px; color: #B0A8A0;">Link expires in 7 days · Up to 10 downloads allowed</p>
+      <div style="background: #F7F4F0; border: 1px solid #E8E2DA; padding: 24px; margin-bottom: 20px; border-radius: 4px;">
+        <h3 style="margin: 0 0 6px; font-family: 'Playfair Display', Georgia, serif; font-size: 18px; color: #1A1A1A;">${i.album_title_snapshot}</h3>
+        <p style="margin: 0 0 16px; font-size: 12px; color: #7A7A7A; letter-spacing: 0.04em;">Format: High-Quality Audio & Artwork (.ZIP Archive)</p>
+        
+        <div style="margin: 16px 0;">
+          <a href="${landingUrl}" style="display: inline-block; background: #1A1A1A; color: #F7F4F0; text-decoration: none; padding: 13px 28px; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; border-radius: 2px;" target="_blank">
+            Download Album (.ZIP)
+          </a>
+        </div>
+
+        <p style="margin: 14px 0 0; font-size: 12px; color: #666666;">
+          Direct download fallback: <a href="${directUrl}" style="color: #1A1A1A; text-decoration: underline;">${directUrl}</a>
+        </p>
+        <p style="margin: 6px 0 0; font-size: 11px; color: #9E978F;">Link valid for 7 days · Up to 10 downloads</p>
       </div>
     `;
   }).join('');
@@ -182,7 +191,7 @@ Timeless Music. Never Gets Old.
   <meta charset="utf-8">
   <style>
     body { font-family: 'DM Sans', -apple-system, sans-serif; background-color: #F7F4F0; color: #1A1A1A; margin: 0; padding: 40px 20px; }
-    .card { max-width: 580px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E8E2DA; padding: 40px; border-radius: 2px; }
+    .card { max-width: 580px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E8E2DA; padding: 40px; border-radius: 4px; }
     .brand { font-family: 'Playfair Display', Georgia, serif; font-size: 20px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 24px; color: #1A1A1A; }
     h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 24px; font-weight: 500; margin-top: 0; margin-bottom: 16px; }
     p { font-size: 14px; line-height: 1.6; color: #3D3D3D; margin-bottom: 16px; }
@@ -196,17 +205,17 @@ Timeless Music. Never Gets Old.
     <h1>Your Music Is Ready</h1>
     <div class="badge-approved">Payment Verified ✓</div>
     <p>Hello ${order.customer_name},</p>
-    <p>Your payment for Order <strong>#${order.order_number}</strong> has been verified. You can now download your purchased digital album(s):</p>
+    <p>Your payment for Order <strong>#${order.order_number}</strong> has been verified. You can now download your digital album:</p>
     
     ${downloadCardsHtml}
 
     <p style="margin-top: 24px; font-size: 13px; color: #3D3D3D;">
-      You can also access your receipt and download your album at any time directly on our website:<br/>
+      You can also view your receipt and order history at any time:<br/>
       <a href="${orderUrl}" style="color: #1A1A1A; font-weight: 600; text-decoration: underline;">${orderUrl}</a>
     </p>
 
     <p style="margin-top: 20px; font-size: 13px; color: #7A7A7A;">
-      If you run into any trouble downloading your files, simply reply directly to this email and our team will assist you.
+      Compatible with macOS, Windows, and mobile devices. If you need any assistance, reply directly to this email.
     </p>
 
     <div class="footer">

@@ -9,6 +9,7 @@ import ProductsPage from './pages/ProductsPage';
 import ProductDetailsPage from './pages/ProductDetailsPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrderConfirmationPage from './pages/OrderConfirmationPage';
+import DownloadPage from './pages/DownloadPage';
 import AboutPage from './pages/AboutPage';
 import SupportPage from './pages/SupportPage';
 import AdminPage from './pages/AdminPage';
@@ -36,6 +37,8 @@ function AppInner() {
         <Route path="/products/:id"                element={<ProductDetailsPage />} />
         <Route path="/checkout"                    element={<CheckoutPage />} />
         <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
+        <Route path="/orders/:orderId"             element={<OrderConfirmationPage />} />
+        <Route path="/download/:token"             element={<DownloadPage />} />
         <Route path="/about"                       element={<AboutPage />} />
         <Route path="/support"                     element={<SupportPage />} />
         <Route path="/admin"                       element={<AdminPage />} />

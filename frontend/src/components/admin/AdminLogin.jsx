@@ -64,18 +64,6 @@ export default function AdminLogin({ onLogin }) {
         >
           {loading ? 'Signing in…' : 'Sign In'}
         </button>
-
-        <button
-          type="button"
-          className="btn-ghost"
-          style={{ width: '100%', justifyContent: 'center', marginTop: 8, fontSize: 12 }}
-          onClick={() => {
-            setEmail('admin@canopus.local');
-            setPassword('canopus2026');
-          }}
-        >
-          Quick Fill Admin Credentials
-        </button>
       </form>
     </div>
   );
