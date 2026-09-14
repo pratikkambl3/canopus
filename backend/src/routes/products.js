@@ -118,6 +118,8 @@ function rowToProduct(r, tracks = [], previewDuration = 30) {
     description:        r.description || '',
     trackCount:         tracks.length,
     // Product specific fields
+    isProductOnly:      Boolean(r.is_product_only),
+    is_product_only:     Boolean(r.is_product_only),
     productEnabled:     Boolean(r.product_enabled),
     price:              Number(r.product_price || 0),
     productDescription: r.product_description || r.description || '',

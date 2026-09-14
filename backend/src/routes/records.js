@@ -69,6 +69,8 @@ function rowToRecord(r, tracks = []) {
     createdAt:          r.created_at,
     updatedAt:          r.updated_at,
     // Digital store product fields
+    isProductOnly:      Boolean(r.is_product_only),
+    is_product_only:     Boolean(r.is_product_only),
     productEnabled:     Boolean(r.product_enabled),
     product_enabled:    Boolean(r.product_enabled),
     price:              Number(r.product_price != null ? r.product_price : 0),
@@ -119,10 +121,12 @@ function fileUrl(req, fieldName, subdir, index = 0) {
 }
 
 /* ── GET /api/records ── */
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const includeAll = req.query.all === 'true' || req.query.includeAll === 'true';
+    const whereClause = includeAll ? '' : 'WHERE is_product_only IS NOT TRUE';
     const recordsResult = await pool.query(
-      `SELECT * FROM records ORDER BY release_date DESC NULLS LAST, created_at DESC`
+      `SELECT * FROM records ${whereClause} ORDER BY release_date DESC NULLS LAST, created_at DESC`
     );
     const tracksResult = await pool.query(
       `SELECT * FROM tracks ORDER BY track_number ASC`
@@ -166,17 +170,19 @@ router.post('/', authenticate, uploadFields, async (req, res) => {
 
     const {
       id, title, artist, description, genre, releaseDate, featured, tracksData,
-      price, productPrice, productDescription, productEnabled
+      price, productPrice, productDescription, productEnabled, isProductOnly, is_product_only
     } = req.body;
 
     const recordId   = id || `record-${uuid()}`;
     const artworkUrl = fileUrl(req, 'artworkFile', 'artwork');
     const initPrice  = price !== undefined ? Math.max(0, Number(price)) : (productPrice !== undefined ? Math.max(0, Number(productPrice)) : 0);
+    const productOnlyVal = isProductOnly === 'true' || isProductOnly === true || is_product_only === 'true' || is_product_only === true;
+    const isProdEnabled = productOnlyVal ? true : (productEnabled === 'true' || productEnabled === true);
 
     const { rows: recordRows } = await client.query(
       `INSERT INTO records
-         (id, title, artist, description, genre, release_date, featured, artwork_url, product_price, product_description, product_enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         (id, title, artist, description, genre, release_date, featured, artwork_url, product_price, product_description, product_enabled, is_product_only)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
       [
         recordId,
@@ -189,7 +195,8 @@ router.post('/', authenticate, uploadFields, async (req, res) => {
         artworkUrl || req.body.artworkUrl || '',
         initPrice,
         productDescription || description || '',
-        productEnabled === 'true' || productEnabled === true,
+        isProdEnabled,
+        productOnlyVal,
       ]
     );
 
@@ -274,13 +281,20 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
     const updatedPreviewEndTime = previewEndTime !== undefined ? Math.max(updatedPreviewStartTime + 1, Number(previewEndTime)) : Number(prev.preview_end_time || 30);
     const updatedPreviewDuration = previewDuration !== undefined ? Math.max(1, Number(previewDuration)) : (updatedPreviewEndTime - updatedPreviewStartTime);
 
+    const updatedProductOnly = req.body.isProductOnly !== undefined 
+      ? (req.body.isProductOnly === 'true' || req.body.isProductOnly === true) 
+      : (req.body.is_product_only !== undefined 
+          ? (req.body.is_product_only === 'true' || req.body.is_product_only === true) 
+          : Boolean(prev.is_product_only));
+
     const { rows: recordRows } = await client.query(
       `UPDATE records SET
          title = $1, artist = $2, description = $3, genre = $4, release_date = $5, featured = $6,
          artwork_url = $7, product_price = $8, product_description = $9, product_enabled = $10,
          preview_enabled = $11, preview_track_id = $12, preview_start_time = $13, preview_end_time = $14, preview_duration = $15,
+         is_product_only = $16,
          updated_at = NOW()
-       WHERE id = $16
+       WHERE id = $17
        RETURNING *`,
       [
         title ?? prev.title,
@@ -298,6 +312,7 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
         updatedPreviewStartTime,
         updatedPreviewEndTime,
         updatedPreviewDuration,
+        updatedProductOnly,
         id,
       ]
     );

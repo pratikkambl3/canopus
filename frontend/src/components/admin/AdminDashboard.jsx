@@ -14,6 +14,10 @@ export default function AdminDashboard({ records, onRecordsChange }) {
   const [deleting, setDeleting]           = useState(null);
   const [productRecord, setProductRecord] = useState(null); // record selected for ProductManagerModal
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [isProductFormMode, setIsProductFormMode]       = useState(false);
+
+  // Separate library records from product-only records
+  const libraryRecords = records.filter(r => !r.isProductOnly && !r.is_product_only);
 
   // Dynamic inline price editing
   const [editingPriceId, setEditingPriceId] = useState(null);
@@ -35,6 +39,7 @@ export default function AdminDashboard({ records, onRecordsChange }) {
   };
 
   const handleEdit = (record) => {
+    setIsProductFormMode(Boolean(record.isProductOnly || record.is_product_only));
     setEditRecord(record);
     setShowForm(true);
   };
@@ -42,6 +47,7 @@ export default function AdminDashboard({ records, onRecordsChange }) {
   const handleFormClose = () => {
     setShowForm(false);
     setEditRecord(null);
+    setIsProductFormMode(false);
     onRecordsChange();
   };
 
@@ -108,7 +114,7 @@ export default function AdminDashboard({ records, onRecordsChange }) {
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {activeTab === 'records' && (
-            <button className="btn-primary" onClick={() => { setEditRecord(null); setShowForm(true); }}>
+            <button className="btn-primary" onClick={() => { setIsProductFormMode(false); setEditRecord(null); setShowForm(true); }}>
               + Add Record
             </button>
           )}
@@ -129,7 +135,7 @@ export default function AdminDashboard({ records, onRecordsChange }) {
           className={`admin-tab-btn${activeTab === 'records' ? ' active' : ''}`}
           onClick={() => setActiveTab('records')}
         >
-          Records Library ({records.length})
+          Records Library ({libraryRecords.length})
         </button>
         <button
           className={`admin-tab-btn${activeTab === 'products' ? ' active' : ''}`}
@@ -154,12 +160,12 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {/* TAB 1: RECORDS */}
       {activeTab === 'records' && (
         <div className="admin-tab-content">
-          {records.length === 0 ? (
+          {libraryRecords.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14 }}>
-              No records yet. Add your first record.
+              No records yet in library. Add your first record.
             </p>
           ) : (
-            records.map(record => (
+            libraryRecords.map(record => (
               <div className="admin-track-row" key={record.id}>
                 {record.artworkUrl ? (
                   <img className="admin-track-row__thumb" src={record.artworkUrl} alt={record.title} loading="lazy" />
@@ -362,11 +368,16 @@ export default function AdminDashboard({ records, onRecordsChange }) {
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) handleFormClose(); }}>
           <div className="modal" style={{ maxWidth: 800 }}>
             <div className="modal__header">
-              <h2 className="modal__title">{editRecord ? 'Edit Record' : 'Add Record'}</h2>
+              <h2 className="modal__title">
+                {editRecord
+                  ? (isProductFormMode ? 'Edit Product' : 'Edit Record')
+                  : (isProductFormMode ? 'Add New Digital Product' : 'Add Record')}
+              </h2>
               <button className="modal__close" onClick={handleFormClose} aria-label="Close">×</button>
             </div>
             <AddRecordForm
               initialData={editRecord}
+              isProductMode={isProductFormMode}
               onSuccess={handleFormClose}
               onCancel={handleFormClose}
             />
@@ -414,10 +425,10 @@ export default function AdminDashboard({ records, onRecordsChange }) {
               }}>
                 <div>
                   <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Create Brand New Album
+                    Create Digital Product
                   </h4>
                   <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-                    Upload new artwork, audio tracks, and metadata into the catalog.
+                    Upload artwork, tracks, and price directly for the digital store (will not appear in Records Library).
                   </p>
                 </div>
                 <button
@@ -427,23 +438,24 @@ export default function AdminDashboard({ records, onRecordsChange }) {
                   onClick={() => {
                     setShowAddProductModal(false);
                     setEditRecord(null);
+                    setIsProductFormMode(true);
                     setShowForm(true);
                   }}
                 >
-                  + New Album
+                  + New Product
                 </button>
               </div>
 
               {/* Option 2: Select from records */}
               <h4 style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-                Select From Existing Albums ({records.length})
+                Select From Existing Albums ({libraryRecords.length})
               </h4>
 
-              {records.length === 0 ? (
+              {libraryRecords.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No records found in library.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto' }}>
-                  {records.map(r => {
+                  {libraryRecords.map(r => {
                     const isPublished = Boolean(r.productEnabled || r.product_enabled);
                     return (
                       <div

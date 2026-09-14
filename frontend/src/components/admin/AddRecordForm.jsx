@@ -15,7 +15,7 @@ const emptyTrack = () => ({
   artworkPreview: null,
 });
 
-export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
+export default function AddRecordForm({ initialData, isProductMode = false, onSuccess, onCancel }) {
   const uid    = useId();
   const isEdit = !!initialData;
 
@@ -131,6 +131,12 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
       formData.append('artist',      form.artist || '');
       formData.append('description', form.description || '');
 
+      const productOnlyVal = isProductMode || (isEdit && Boolean(initialData.isProductOnly || initialData.is_product_only));
+      formData.append('isProductOnly', productOnlyVal ? 'true' : 'false');
+      if (productOnlyVal) {
+        formData.append('productEnabled', 'true');
+      }
+
       if (isEdit && initialData.artworkUrl) formData.append('artworkUrl', initialData.artworkUrl);
       if (artworkFile) formData.append('artworkFile', artworkFile);
 
@@ -207,8 +213,8 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      {/* ── Record Details ── */}
-      <h3 className="admin-section-heading">Record Details</h3>
+      {/* ── Record / Product Details ── */}
+      <h3 className="admin-section-heading">{isProductMode ? 'Product Details' : 'Record Details'}</h3>
 
       <div className="form-field">
         <label htmlFor={`${uid}-title`}>Record Title *</label>
@@ -243,6 +249,25 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
           rows={3}
         />
       </div>
+
+      {isProductMode && (
+        <div className="form-field">
+          <label htmlFor={`${uid}-price`}>Digital Store Price (₹ INR) *</label>
+          <input
+            id={`${uid}-price`}
+            type="number"
+            min="0"
+            step="1"
+            value={form.price}
+            onChange={set('price')}
+            placeholder="e.g. 199"
+            required
+          />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+            This item will be listed in the Products digital store.
+          </span>
+        </div>
+      )}
 
       {/* Album Artwork */}
       <div className="form-field">
@@ -410,7 +435,9 @@ export default function AddRecordForm({ initialData, onSuccess, onCancel }) {
             ? '✓ Saved!'
             : saving
               ? (progress > 0 && progress < 100 ? `Uploading ${progress}%…` : 'Saving…')
-              : isEdit ? 'Save Changes' : 'Publish Record'}
+              : isProductMode
+                ? (isEdit ? 'Save Product Changes' : 'Publish Product')
+                : (isEdit ? 'Save Changes' : 'Publish Record')}
         </button>
         <button type="button" className="btn-ghost" onClick={onCancel}>
           Cancel

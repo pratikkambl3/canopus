@@ -27,9 +27,10 @@ async function handleResponse(res) {
 
 /* ── Public read ── */
 
-export async function getRecords() {
+export async function getRecords(options = {}) {
   try {
-    const res = await fetch(`${API_BASE}/records`);
+    const qs = options.all ? '?all=true' : '';
+    const res = await fetch(`${API_BASE}/records${qs}`);
     return await handleResponse(res);
   } catch (err) {
     console.warn('[CANOPUS] API unavailable.', err.message);

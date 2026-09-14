@@ -21,7 +21,7 @@ export default function AdminPage() {
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadRecords = () => {
-    getRecords().then(setRecords).catch(console.error);
+    getRecords({ all: true }).then(setRecords).catch(console.error);
   };
 
   // Loading auth state

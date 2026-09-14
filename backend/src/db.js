@@ -39,6 +39,7 @@ async function initDb() {
       digital_file_path     TEXT        DEFAULT '',
       product_created_at    TIMESTAMPTZ DEFAULT NOW(),
       product_updated_at    TIMESTAMPTZ DEFAULT NOW(),
+      is_product_only       BOOLEAN     DEFAULT FALSE,
       created_at            TIMESTAMPTZ DEFAULT NOW(),
       updated_at            TIMESTAMPTZ DEFAULT NOW()
     );
@@ -63,6 +64,7 @@ async function initDb() {
     ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_start_time INTEGER DEFAULT 0;
     ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_end_time INTEGER DEFAULT 30;
     ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_duration INTEGER DEFAULT 30;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS is_product_only BOOLEAN DEFAULT FALSE;
   `);
 
   // 2. Tracks table (Individual songs inside a record)
