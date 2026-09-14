@@ -14,6 +14,7 @@ export function usePreviewPlayer(defaultDuration = 30) {
     isPlaying: false,
     loading: false,
     currentTime: 0,
+    duration: 0,
     maxDuration: defaultDuration,
     error: null,
   });
@@ -28,13 +29,24 @@ export function usePreviewPlayer(defaultDuration = 30) {
     const onTime = () => {
       setActivePreview(prev => {
         if (!prev.isPlaying) return prev;
-        if (audio.currentTime >= prev.maxDuration) {
+        if (prev.maxDuration && Number(prev.maxDuration) > 0 && audio.currentTime >= prev.maxDuration) {
           audio.pause();
           audio.currentTime = 0;
           return { ...prev, isPlaying: false, currentTime: 0 };
         }
-        return { ...prev, currentTime: audio.currentTime };
+        return {
+          ...prev,
+          currentTime: audio.currentTime,
+          duration: audio.duration || prev.duration || 0,
+        };
       });
+    };
+
+    const onMeta = () => {
+      setActivePreview(prev => ({
+        ...prev,
+        duration: audio.duration || prev.duration || 0,
+      }));
     };
 
     const onCanPlay = () => {
@@ -56,12 +68,14 @@ export function usePreviewPlayer(defaultDuration = 30) {
     };
 
     audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('canplay', onCanPlay);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
 
     return () => {
       audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('loadedmetadata', onMeta);
       audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
@@ -74,7 +88,14 @@ export function usePreviewPlayer(defaultDuration = 30) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const dur = Number(previewDuration) > 0 ? Number(previewDuration) : defaultDuration;
+    let dur;
+    if (previewDuration === null || previewDuration === false || previewDuration === 0) {
+      dur = null; // No duration limit: play full track
+    } else if (Number(previewDuration) > 0) {
+      dur = Number(previewDuration);
+    } else {
+      dur = defaultDuration;
+    }
 
     setActivePreview(prev => {
       const isSame = prev.productId === productId && prev.trackId === trackId;
@@ -108,6 +129,7 @@ export function usePreviewPlayer(defaultDuration = 30) {
         isPlaying: true,
         loading: true,
         currentTime: 0,
+        duration: 0,
         maxDuration: dur,
         error: null,
       };

@@ -75,15 +75,17 @@ export default function ProductDetailsPage() {
   const heroCurTime = isHeroPreview ? activePreview.currentTime : 0;
   const heroMaxTime = product.previewDuration || (isHeroPreview ? activePreview.maxDuration : 30);
 
+  const previewDur = product.previewEnabled === false ? null : product.previewDuration;
+
   const handleHeroPreview = () => {
     if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, previewTrackId, product.previewDuration);
+    togglePreview(product.id, previewTrackId, previewDur);
   };
 
   const handleTrackPreview = (trackId, e) => {
     e?.stopPropagation();
     if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, trackId, product.previewDuration);
+    togglePreview(product.id, trackId, previewDur);
   };
 
   const handleBuyNow = () => {
@@ -211,7 +213,9 @@ export default function ProductDetailsPage() {
               <dd className="product-specs__value">{tracks.length}</dd>
 
               <dt className="product-specs__label">PREVIEW</dt>
-              <dd className="product-specs__value">{product.previewDuration || 30}s Sample</dd>
+              <dd className="product-specs__value">
+                {product.previewEnabled === false ? 'Full Track' : `${product.previewDuration || 30}s Sample`}
+              </dd>
 
               <dt className="product-specs__label">PRICE</dt>
               <dd className="product-specs__value">₹{product.price}</dd>
@@ -227,7 +231,9 @@ export default function ProductDetailsPage() {
       {/* Track Preview Section */}
       <section className="product-tracks-section">
         <div className="product-tracks__header">
-          <h2 className="product-tracks__title">Tracklist Preview</h2>
+          <h2 className="product-tracks__title">
+            {product.previewEnabled === false ? 'Tracklist' : 'Tracklist Preview'}
+          </h2>
           <span className="product-tracks__count">{tracks.length} {tracks.length === 1 ? 'Track' : 'Tracks'}</span>
         </div>
 
@@ -274,7 +280,9 @@ export default function ProductDetailsPage() {
 
                     <span className="product-track-row__dur">
                       {isTrackPlaying
-                        ? `${formatTime(activePreview.currentTime)} / ${formatTime(activePreview.maxDuration)}`
+                        ? (activePreview.maxDuration
+                            ? `${formatTime(activePreview.currentTime)} / ${formatTime(activePreview.maxDuration)}`
+                            : `${formatTime(activePreview.currentTime)} / ${formatTime(track.duration || activePreview.duration || 0)}`)
                         : track.duration
                         ? formatTime(track.duration)
                         : '—'}

@@ -128,7 +128,7 @@ function rowToProduct(r, tracks = [], previewDuration = 30) {
     previewTrackId:     previewTrackId,
     previewStartTime:   Number(r.preview_start_time || 0),
     previewEndTime:     Number(r.preview_end_time || 30),
-    previewDuration:    Number(r.preview_duration || (Number(r.preview_end_time || 30) - Number(r.preview_start_time || 0)) || previewDuration),
+    previewDuration:    r.preview_enabled === false ? null : Number(r.preview_duration || (Number(r.preview_end_time || 30) - Number(r.preview_start_time || 0)) || previewDuration),
     previewTrack: matchedTrack ? {
       id: matchedTrack.id,
       title: matchedTrack.title,
@@ -250,11 +250,6 @@ router.get('/:id/preview', async (req, res) => {
 
     const record = records[0];
 
-    // Verify preview is enabled
-    if (record.preview_enabled === false) {
-      return res.status(403).json({ error: 'Audio preview is disabled for this record.' });
-    }
-
     // Find requested track or default to configured preview track or first track
     let trackQuery = 'SELECT * FROM tracks WHERE record_id = $1';
     const params = [id];
@@ -286,19 +281,32 @@ router.get('/:id/preview', async (req, res) => {
 
     // Locate file on disk
     const audioUrl = track.audio_url;
+    let cleanUrl = audioUrl;
+    try {
+      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+        cleanUrl = new URL(cleanUrl).pathname;
+      }
+    } catch (_) {}
+    cleanUrl = cleanUrl.split('?')[0].split('#')[0];
+
     let filePath;
-    if (audioUrl.startsWith('/uploads/audio/')) {
-      const filename = path.basename(audioUrl);
+    if (cleanUrl.startsWith('/uploads/audio/')) {
+      const filename = path.basename(cleanUrl);
       filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', 'audio', filename);
-    } else if (audioUrl.startsWith('/uploads/')) {
-      filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', audioUrl.replace('/uploads/', ''));
+    } else if (cleanUrl.startsWith('/uploads/')) {
+      filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', cleanUrl.replace(/^\/uploads\//, ''));
     } else {
-      const filename = path.basename(audioUrl);
+      const filename = path.basename(cleanUrl);
       filePath = path.join(process.env.UPLOAD_DIR || '/app/uploads', 'audio', filename);
     }
 
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Audio file not found on server.' });
+      const directFallback = path.join(process.env.UPLOAD_DIR || '/app/uploads', path.basename(cleanUrl));
+      if (fs.existsSync(directFallback)) {
+        filePath = directFallback;
+      } else {
+        return res.status(404).json({ error: 'Audio file not found on server.' });
+      }
     }
 
     const stat = fs.statSync(filePath);
@@ -315,22 +323,25 @@ router.get('/:id/preview', async (req, res) => {
     };
     const contentType = mimeTypes[ext] || 'audio/mpeg';
 
-    // Calculate byte bounds for preview window
-    const bytesPerSec = ext === '.wav' ? 176400 : 40000;
+    // Calculate byte bounds for streaming
     let byteStart = 0;
     let byteEnd = totalSize - 1;
 
-    if (track.duration && Number(track.duration) > 0) {
-      const dur = Number(track.duration);
-      byteStart = Math.max(0, Math.floor((startTime / dur) * totalSize));
-      byteEnd = Math.min(totalSize - 1, Math.floor((endTime / dur) * totalSize));
-    } else {
-      byteStart = Math.max(0, Math.floor(startTime * bytesPerSec));
-      byteEnd = Math.min(totalSize - 1, Math.floor(endTime * bytesPerSec));
-    }
+    // Only restrict to preview window if preview is enabled
+    if (record.preview_enabled !== false) {
+      const bytesPerSec = ext === '.wav' ? 176400 : 40000;
+      if (track.duration && Number(track.duration) > 0) {
+        const dur = Number(track.duration);
+        byteStart = Math.max(0, Math.floor((startTime / dur) * totalSize));
+        byteEnd = Math.min(totalSize - 1, Math.floor((endTime / dur) * totalSize));
+      } else {
+        byteStart = Math.max(0, Math.floor(startTime * bytesPerSec));
+        byteEnd = Math.min(totalSize - 1, Math.floor(endTime * bytesPerSec));
+      }
 
-    if (byteEnd <= byteStart) {
-      byteEnd = Math.min(totalSize - 1, byteStart + Math.floor(previewDuration * bytesPerSec));
+      if (byteEnd <= byteStart) {
+        byteEnd = Math.min(totalSize - 1, byteStart + Math.floor(previewDuration * bytesPerSec));
+      }
     }
 
     const previewWindowSize = (byteEnd - byteStart) + 1;
