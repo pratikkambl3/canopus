@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-export function usePreviewPlayer(defaultDuration = 30) {
+export function usePreviewPlayer(defaultDuration = null) {
   const [activePreview, setActivePreview] = useState({
     productId: null,
     trackId: null,
@@ -88,13 +88,11 @@ export function usePreviewPlayer(defaultDuration = 30) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    let dur;
-    if (previewDuration === null || previewDuration === false || previewDuration === 0) {
-      dur = null; // No duration limit: play full track
-    } else if (Number(previewDuration) > 0) {
+    let dur = null;
+    if (previewDuration && Number(previewDuration) > 0) {
       dur = Number(previewDuration);
-    } else {
-      dur = defaultDuration;
+    } else if (defaultDuration && Number(defaultDuration) > 0) {
+      dur = Number(defaultDuration);
     }
 
     setActivePreview(prev => {

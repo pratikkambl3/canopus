@@ -127,8 +127,8 @@ function rowToProduct(r, tracks = [], previewDuration = 30) {
     previewEnabled:     r.preview_enabled !== false,
     previewTrackId:     previewTrackId,
     previewStartTime:   Number(r.preview_start_time || 0),
-    previewEndTime:     Number(r.preview_end_time || 30),
-    previewDuration:    r.preview_enabled === false ? null : Number(r.preview_duration || (Number(r.preview_end_time || 30) - Number(r.preview_start_time || 0)) || previewDuration),
+    previewEndTime:     Number(r.preview_end_time || 0),
+    previewDuration:    null,
     previewTrack: matchedTrack ? {
       id: matchedTrack.id,
       title: matchedTrack.title,
@@ -323,28 +323,10 @@ router.get('/:id/preview', async (req, res) => {
     };
     const contentType = mimeTypes[ext] || 'audio/mpeg';
 
-    // Calculate byte bounds for streaming
+    // Stream full audio without 30s limit
     let byteStart = 0;
     let byteEnd = totalSize - 1;
-
-    // Only restrict to preview window if preview is enabled
-    if (record.preview_enabled !== false) {
-      const bytesPerSec = ext === '.wav' ? 176400 : 40000;
-      if (track.duration && Number(track.duration) > 0) {
-        const dur = Number(track.duration);
-        byteStart = Math.max(0, Math.floor((startTime / dur) * totalSize));
-        byteEnd = Math.min(totalSize - 1, Math.floor((endTime / dur) * totalSize));
-      } else {
-        byteStart = Math.max(0, Math.floor(startTime * bytesPerSec));
-        byteEnd = Math.min(totalSize - 1, Math.floor(endTime * bytesPerSec));
-      }
-
-      if (byteEnd <= byteStart) {
-        byteEnd = Math.min(totalSize - 1, byteStart + Math.floor(previewDuration * bytesPerSec));
-      }
-    }
-
-    const previewWindowSize = (byteEnd - byteStart) + 1;
+    const previewWindowSize = totalSize;
 
     const range = req.headers.range;
     if (range) {

@@ -35,7 +35,7 @@ export default function ProductDetailsPage() {
 
   const { addToCart, isInCart } = useCart();
   const { state: audioState, actions: audioActions } = useAudio();
-  const { activePreview, togglePreview } = usePreviewPlayer(30);
+  const { activePreview, togglePreview } = usePreviewPlayer();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -73,19 +73,20 @@ export default function ProductDetailsPage() {
   const isHeroPlaying = isHeroPreview && activePreview.isPlaying;
   const isHeroLoading = isHeroPreview && activePreview.loading;
   const heroCurTime = isHeroPreview ? activePreview.currentTime : 0;
-  const heroMaxTime = product.previewDuration || (isHeroPreview ? activePreview.maxDuration : 30);
-
-  const previewDur = product.previewEnabled === false ? null : product.previewDuration;
+  const heroTrack = tracks.find(t => t.id === previewTrackId);
+  const heroMaxTime = (heroTrack?.duration && Number(heroTrack.duration) > 0)
+    ? Number(heroTrack.duration)
+    : (isHeroPreview && activePreview.duration > 0 ? activePreview.duration : 0);
 
   const handleHeroPreview = () => {
     if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, previewTrackId, previewDur);
+    togglePreview(product.id, previewTrackId, null);
   };
 
   const handleTrackPreview = (trackId, e) => {
     e?.stopPropagation();
     if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, trackId, previewDur);
+    togglePreview(product.id, trackId, null);
   };
 
   const handleBuyNow = () => {
@@ -163,8 +164,8 @@ export default function ProductDetailsPage() {
                   {isHeroLoading
                     ? 'Loading preview…'
                     : isHeroPlaying
-                    ? `Preview ${formatTime(heroCurTime)} / ${formatTime(heroMaxTime)}`
-                    : `Play Preview${product.previewTrack?.title ? `: ${product.previewTrack.title}` : ''} (${product.previewDuration || 30}s)`}
+                    ? `Preview ${formatTime(heroCurTime)}${heroMaxTime > 0 ? ` / ${formatTime(heroMaxTime)}` : ''}`
+                    : `Play Preview${product.previewTrack?.title ? `: ${product.previewTrack.title}` : ''}`}
                 </span>
               </button>
             )}
@@ -214,7 +215,7 @@ export default function ProductDetailsPage() {
 
               <dt className="product-specs__label">PREVIEW</dt>
               <dd className="product-specs__value">
-                {product.previewEnabled === false ? 'Full Track' : `${product.previewDuration || 30}s Sample`}
+                Full Track
               </dd>
 
               <dt className="product-specs__label">PRICE</dt>
@@ -280,9 +281,7 @@ export default function ProductDetailsPage() {
 
                     <span className="product-track-row__dur">
                       {isTrackPlaying
-                        ? (activePreview.maxDuration
-                            ? `${formatTime(activePreview.currentTime)} / ${formatTime(activePreview.maxDuration)}`
-                            : `${formatTime(activePreview.currentTime)} / ${formatTime(track.duration || activePreview.duration || 0)}`)
+                        ? `${formatTime(activePreview.currentTime)} / ${formatTime(track.duration || activePreview.duration || 0)}`
                         : track.duration
                         ? formatTime(track.duration)
                         : '—'}
