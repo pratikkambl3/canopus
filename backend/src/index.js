@@ -15,6 +15,7 @@ const productsRouter = require('./routes/products');
 const ordersRouter   = require('./routes/orders');
 const downloadRouter = require('./routes/download');
 const supportRouter  = require('./routes/support');
+const settingsRouter = require('./routes/settings');
 
 const app  = express();
 const PORT = parseInt(process.env.BACKEND_PORT || '8000', 10);
@@ -51,6 +52,7 @@ app.use('/api/products', productsRouter);
 app.use('/api/orders',   ordersRouter);
 app.use('/api/download', downloadRouter);
 app.use('/api/support',  supportRouter);
+app.use('/api/settings', settingsRouter);
 
 /* ── Health check ── */
 app.get('/api/health', async (_req, res) => {

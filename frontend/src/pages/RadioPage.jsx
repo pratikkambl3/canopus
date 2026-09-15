@@ -2,12 +2,14 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAudio } from '../context/AudioContext';
 import { getRecords } from '../services/recordsService';
+import { useCharacterImage } from '../services/characterService';
 import RadioPlayer from '../components/radio/RadioPlayer';
 import OnAirBadge from '../components/radio/OnAirBadge';
 
 export default function RadioPage() {
   const { state, actions } = useAudio();
   const { isPlaying, liveRadioEnabled, tracks, currentTrackId } = state;
+  const { characterUrl, setCharacterUrl } = useCharacterImage('home');
 
   // Load all tracks from all records into radio pool
   useEffect(() => {
@@ -34,9 +36,10 @@ export default function RadioPage() {
       <div className="radio-page__character-col">
         <img
           className="radio-page__character-img animate-char"
-          src="/canopus-portrait.png"
+          src={characterUrl}
           alt="The CANOPUS host — a mysterious figure in a navy pinstripe suit"
           draggable={false}
+          onError={() => setCharacterUrl('/canopus-portrait.png')}
         />
       </div>
 

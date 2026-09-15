@@ -1,6 +1,9 @@
 import MiniPlayer from '../components/layout/MiniPlayer';
+import { useCharacterImage } from '../services/characterService';
 
 export default function AboutPage() {
+  const { characterUrl, setCharacterUrl } = useCharacterImage('about');
+
   return (
     <div className="about-page page">
       {/* Left — Text content */}
@@ -36,9 +39,10 @@ export default function AboutPage() {
       <div className="about-page__image-col">
         <img
           className="about-page__character"
-          src="/canopus-portrait.png"
+          src={characterUrl}
           alt="The CANOPUS host"
           draggable={false}
+          onError={() => setCharacterUrl('/canopus-portrait.png')}
         />
       </div>
 

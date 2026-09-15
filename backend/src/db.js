@@ -110,6 +110,18 @@ async function initDb() {
     INSERT INTO app_settings (key, value)
     VALUES ('active_qr_slot', '1')
     ON CONFLICT (key) DO NOTHING;
+    INSERT INTO app_settings (key, value)
+    VALUES ('home_character_url', '/canopus-portrait.png')
+    ON CONFLICT (key) DO NOTHING;
+    INSERT INTO app_settings (key, value)
+    VALUES ('about_character_url', '/canopus-portrait.png')
+    ON CONFLICT (key) DO NOTHING;
+    INSERT INTO app_settings (key, value)
+    VALUES ('character_shuffle_mode', 'false')
+    ON CONFLICT (key) DO NOTHING;
+    INSERT INTO app_settings (key, value)
+    VALUES ('character_gallery', '["/canopus-portrait.png"]')
+    ON CONFLICT (key) DO NOTHING;
   `);
 
   // 4. Support Queries table (Customer inquiries & issues)

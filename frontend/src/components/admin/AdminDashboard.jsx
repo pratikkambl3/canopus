@@ -8,6 +8,7 @@ import AdminOrdersTab from './AdminOrdersTab';
 import AdminSupportTab from './AdminSupportTab';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import AdminQrPanel from './AdminQrPanel';
+import AdminCharacterPanel from './AdminCharacterPanel';
 
 export default function AdminDashboard({ records, onRecordsChange }) {
   const [activeTab, setActiveTab]         = useState('records'); // 'records', 'products', 'orders', 'support'
@@ -195,6 +196,12 @@ export default function AdminDashboard({ records, onRecordsChange }) {
           onClick={() => setActiveTab('payment-qr')}
         >
           Payment QR
+        </button>
+        <button
+          className={`admin-tab-btn${activeTab === 'character-art' ? ' active' : ''}`}
+          onClick={() => setActiveTab('character-art')}
+        >
+          Character Art
         </button>
       </div>
 
@@ -432,6 +439,13 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {activeTab === 'payment-qr' && (
         <div className="admin-tab-content">
           <AdminQrPanel />
+        </div>
+      )}
+
+      {/* TAB 6: CHARACTER ART */}
+      {activeTab === 'character-art' && (
+        <div className="admin-tab-content">
+          <AdminCharacterPanel />
         </div>
       )}
 
