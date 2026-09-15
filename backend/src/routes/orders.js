@@ -272,11 +272,8 @@ router.put('/payment-qr/slot', authenticate, async (req, res) => {
     if (isNaN(slot) || slot < 1 || slot > 3) {
       return res.status(400).json({ error: 'Slot must be 1, 2, or 3.' });
     }
-    // Verify the QR image for this slot exists
-    const qrPath = resolveQrPath(slot);
-    if (!qrPath) {
-      return res.status(400).json({ error: `QR image for slot ${slot} not found on server.` });
-    }
+    // QR images are frontend static assets served by Nginx.
+    // The backend only stores the active slot number; no filesystem check needed here.
     await pool.query(
       `INSERT INTO app_settings (key, value, updated_at) VALUES ('active_qr_slot', $1, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
