@@ -57,7 +57,7 @@ services:
       PAYMENT_PAYEE_NAME:    ${PAYMENT_PAYEE_NAME:-Pratik Prakash Kamble}
       PAYMENT_QR_IMAGE_URL:  ${PAYMENT_QR_IMAGE_URL:-/payment-qr.png}
       PREVIEW_DURATION_SECONDS: ${PREVIEW_DURATION_SECONDS:-30}
-      SUPPORT_EMAIL:         ${SUPPORT_EMAIL:-stocksbulls47@gmail.com}
+      SUPPORT_EMAIL:         ${SUPPORT_EMAIL:-mr.canopus111@gmail.com}
       SMTP_HOST:             ${SMTP_HOST:-}
       SMTP_PORT:             ${SMTP_PORT:-587}
       SMTP_SECURE:           ${SMTP_SECURE:-false}

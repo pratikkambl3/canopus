@@ -47,7 +47,6 @@ export async function generateProductZip(id) {
 }
 
 /**
-/**
  * Upload a custom digital album ZIP with real-time progress callback
  */
 export function uploadProductZip(id, file, onProgress) {
@@ -89,6 +88,22 @@ export function uploadProductZip(id, file, onProgress) {
 
     xhr.send(formData);
   });
+}
+
+/**
+ * Delete a product from the store (storeOnly=true) or permanently (storeOnly=false).
+ * storeOnly=true: unpublishes the product and removes its ZIP, keeping the library record intact.
+ * storeOnly=false: performs full safe deletion of the record and all associated assets.
+ */
+export async function deleteProduct(id, storeOnly = false) {
+  const url = storeOnly
+    ? `${API_BASE}/products/${id}?storeOnly=true`
+    : `${API_BASE}/products/${id}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
 }
 
 /**
@@ -173,3 +188,25 @@ export async function updatePreviewSettings(previewDurationSeconds) {
   return handleResponse(res);
 }
 
+/**
+ * Get the currently active payment QR slot (1, 2, or 3)
+ */
+export async function getActiveQrSlot() {
+  const res = await fetch(`${API_BASE}/orders/payment-qr/active`);
+  return handleResponse(res);
+}
+
+/**
+ * Switch the active payment QR slot (1, 2, or 3) — admin only
+ */
+export async function switchQrSlot(slot) {
+  const res = await fetch(`${API_BASE}/orders/payment-qr/slot`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ slot }),
+  });
+  return handleResponse(res);
+}

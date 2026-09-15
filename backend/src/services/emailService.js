@@ -242,7 +242,7 @@ Thank you for your order at CANOPUS (Order #${order.order_number}).
 We were unable to verify your payment reference / UTR number (${order.payment_reference || 'N/A'}).
 ${reason ? `Reason: ${reason}\n` : ''}
 
-If this was an error, please reach out to us at ${SMTP_FROM_EMAIL} with a screenshot of your payment confirmation and your order number so we can verify it promptly.
+If this was an error, please reach out to us at ${process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com'} with a screenshot of your payment confirmation and your order number so we can verify it promptly.
 
 CANOPUS
 Timeless Music. Never Gets Old.
@@ -271,7 +271,7 @@ Timeless Music. Never Gets Old.
     <p>Hello ${order.customer_name},</p>
     <p>We reviewed Order <strong>#${order.order_number}</strong>, but our team was unable to confirm the payment reference / UTR (<code>${order.payment_reference || 'N/A'}</code>) in our records.</p>
     ${reason ? `<p style="background: #F7F4F0; padding: 12px; font-size: 13px;"><strong>Note:</strong> ${reason}</p>` : ''}
-    <p>If payment was already deducted from your account, please reply to this email with your transaction details or bank statement so we can assist you and release your digital download.</p>
+    <p>If payment was already deducted from your account, please reply to this email or write to <a href="mailto:${process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com'}">${process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com'}</a> with your transaction details or bank statement so we can assist you and release your digital download.</p>
     <div class="footer">
       CANOPUS · Timeless Music. Never Gets Old.
     </div>
@@ -287,7 +287,7 @@ Timeless Music. Never Gets Old.
  * Support Notification to Support Team / Admin
  */
 async function sendSupportNotificationToTeam(query) {
-  const supportDest = process.env.SUPPORT_EMAIL || process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL || 'admin@canopus.local';
+  const supportDest = process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com';
   const subject = `[Support Query] ${query.subject} — from ${query.name}`;
 
   const text = `

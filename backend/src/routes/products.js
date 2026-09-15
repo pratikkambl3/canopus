@@ -16,6 +16,7 @@ const multer       = require('multer');
 const { pool }     = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { generateAlbumZip, deleteAlbumZip, DIGITAL_PRODUCTS_PATH } = require('../services/zipService');
+const { deleteRecordAndAssets } = require('./records');
 
 /* Multer for custom digital ZIP uploads */
 const zipStorage = multer.diskStorage({
@@ -591,4 +592,65 @@ router.delete('/:id/zip', authenticate, async (req, res) => {
   }
 });
 
+/* ── DELETE /api/products/:id — protected (delete product or unpublish from store) ── */
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const storeOnly = req.query.storeOnly === 'true' || req.body?.storeOnly === true;
+
+    const { rows: records } = await pool.query('SELECT * FROM records WHERE id = $1', [req.params.id]);
+    if (!records.length) {
+      return res.status(404).json({ error: 'Product not found.' });
+    }
+    const record = records[0];
+
+    // If storeOnly is requested and it's NOT a product-only record, simply remove product status and ZIP
+    if (storeOnly && !record.is_product_only) {
+      // Check if any orders exist for this album before deleting ZIP
+      const orderCheck = await pool.query(
+        'SELECT COUNT(*) AS count FROM order_items WHERE album_id = $1',
+        [req.params.id]
+      );
+      const hasOrders = parseInt(orderCheck.rows[0].count, 10) > 0;
+
+      // If no orders, safely delete the ZIP file from disk
+      if (!hasOrders) {
+        deleteAlbumZip(req.params.id);
+      }
+
+      await pool.query(
+        `UPDATE records
+         SET product_enabled     = FALSE,
+             digital_file_id     = '',
+             digital_file_name   = '',
+             digital_file_size   = 0,
+             digital_file_hash   = '',
+             digital_file_path   = '',
+             product_updated_at  = NOW()
+         WHERE id = $1`,
+        [req.params.id]
+      );
+
+      return res.json({
+        success: true,
+        message: `Product "${record.title}" removed from store. Record preserved in library.`,
+        storeOnly: true,
+      });
+    }
+
+    // Otherwise, full safe deletion of record and assets
+    const result = await deleteRecordAndAssets(req.params.id);
+    res.json(result);
+  } catch (err) {
+    console.error('[products] DELETE /:id error:', err);
+    if (err.status === 409) {
+      return res.status(409).json({ error: err.message });
+    }
+    if (err.status === 404) {
+      return res.status(404).json({ error: 'Product not found.' });
+    }
+    res.status(500).json({ error: err.message || 'Failed to delete product.' });
+  }
+});
+
 module.exports = router;
+

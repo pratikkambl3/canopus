@@ -1,8 +1,3 @@
-/* ================================================================
-   CANOPUS — Checkout Page
-   Clean, minimal checkout with UPI QR payment and UTR verification.
-   ================================================================ */
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -29,6 +24,23 @@ export default function CheckoutPage() {
   const [copied, setCopied]         = useState(false);
   const [isMobile, setIsMobile]     = useState(false);
 
+  // Active QR: fetched dynamically from backend (admin-switchable)
+  const [activeQrSlot, setActiveQrSlot] = useState(1);
+  const [qrImageUrl, setQrImageUrl] = useState('/payment-qr-1.png');
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || '/api';
+    fetch(`${apiBase}/orders/payment-qr/active`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.slot) {
+          setActiveQrSlot(data.slot);
+          setQrImageUrl(data.imageUrl || `/payment-qr-${data.slot}.png`);
+        }
+      })
+      .catch(() => {}); // silently fall back to default
+  }, []);
+
   // Detect mobile device for UPI intent
   useEffect(() => {
     const checkMobile = () => {
@@ -43,7 +55,6 @@ export default function CheckoutPage() {
   // UPI configuration
   const upiId = import.meta.env.VITE_PAYMENT_UPI_ID || 'pratik.kamble11@ybl';
   const payeeName = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Pratik Prakash Kamble';
-  const qrImageUrl = import.meta.env.VITE_PAYMENT_QR_IMAGE_URL || '/payment-qr.png';
   const downloadQrUrl = `${import.meta.env.VITE_API_URL || '/api'}/orders/payment-qr/download`;
   const upiDeepLink = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(cartTotal)}&cu=INR&tn=${encodeURIComponent('CANOPUS Order')}`;
 

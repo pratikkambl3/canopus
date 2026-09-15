@@ -14,6 +14,7 @@ const multer       = require('multer');
 const { v4: uuid } = require('uuid');
 const { pool }     = require('../db');
 const { authenticate } = require('../middleware/auth');
+const { deleteAlbumZip, resolveUploadPath } = require('../services/zipService');
 
 /* ── Multer storage ── */
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
@@ -329,21 +330,26 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
     const insertedTracks = [];
 
     if (parsedTracks !== null) {
+      // Fetch existing tracks for this record to preserve audioUrl/artworkUrl if not re-sent
+      const { rows: existingTracks } = await client.query('SELECT * FROM tracks WHERE record_id = $1', [id]);
+      const existingMap = new Map(existingTracks.map(t => [t.id, t]));
+
       // Delete old tracks and re-insert to handle reordering/deletions cleanly
       await client.query('DELETE FROM tracks WHERE record_id = $1', [id]);
 
       for (let i = 0; i < parsedTracks.length; i++) {
         const t = parsedTracks[i];
         const tId = t.id && !t.id.startsWith('new-') ? t.id : `track-${uuid()}`;
+        const prevTrack = existingMap.get(tId);
         
-        // Audio file
-        let aUrl = t.audioUrl || t.audio_url || '';
+        // Audio file: newly uploaded file > sent audioUrl > existing track audio_url
+        let aUrl = t.audioUrl || t.audio_url || (prevTrack ? prevTrack.audio_url : '');
         if (t.audioFileIndex !== undefined && t.audioFileIndex !== null) {
           aUrl = fileUrl(req, 'audioFiles', 'audio', t.audioFileIndex) || aUrl;
         }
 
-        // Track artwork
-        let trackArtworkUrl = t.artworkUrl || t.artwork_url || '';
+        // Track artwork: newly uploaded file > sent artworkUrl > existing track artwork_url
+        let trackArtworkUrl = t.artworkUrl || t.artwork_url || (prevTrack ? prevTrack.artwork_url : '');
         if (t.artworkFileIndex !== undefined && t.artworkFileIndex !== null) {
           trackArtworkUrl = fileUrl(req, 'trackArtworkFiles', 'artwork', t.artworkFileIndex) || trackArtworkUrl;
         }
@@ -371,6 +377,16 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
         );
         insertedTracks.push(trackRows[0]);
       }
+
+      // Ensure preview_track_id references a valid inserted track
+      if (insertedTracks.length > 0) {
+        const hasPreview = insertedTracks.some(t => t.id === updatedPreviewTrackId);
+        if (!hasPreview) {
+          const fallbackTrackId = insertedTracks[0].id;
+          await client.query('UPDATE records SET preview_track_id = $1 WHERE id = $2', [fallbackTrackId, id]);
+          recordRows[0].preview_track_id = fallbackTrackId;
+        }
+      }
     } else {
       const { rows: existingTracks } = await client.query('SELECT * FROM tracks WHERE record_id = $1 ORDER BY track_number ASC', [id]);
       insertedTracks.push(...existingTracks);
@@ -388,21 +404,119 @@ router.put('/:id', authenticate, uploadFields, async (req, res) => {
   }
 });
 
+/**
+ * Safe deletion of a record and all associated assets.
+ * 1. Checks if customer orders reference this album in order_items. If so, rejects with 409 Conflict.
+ * 2. Gathers artwork, audio, and ZIP references.
+ * 3. Deletes record from DB (cascades to tracks).
+ * 4. Deletes private digital album ZIP.
+ * 5. Checks if artwork or audio are still referenced by other records/tracks; if not, removes file from disk.
+ */
+async function deleteRecordAndAssets(recordId, clientOrPool = pool) {
+  // 1. Check customer order constraints
+  const orderCheck = await clientOrPool.query(
+    'SELECT COUNT(*) AS count FROM order_items WHERE album_id = $1',
+    [recordId]
+  );
+  const orderCount = parseInt(orderCheck.rows[0].count, 10);
+  if (orderCount > 0) {
+    const err = new Error(
+      `Cannot delete this record because it is referenced by ${orderCount} customer order(s). Customer purchase history and download records must be preserved. To hide it from the catalog, unpublish or disable it instead.`
+    );
+    err.status = 409;
+    throw err;
+  }
+
+  // 2. Fetch record and tracks
+  const recordRes = await clientOrPool.query('SELECT * FROM records WHERE id = $1', [recordId]);
+  if (!recordRes.rows.length) {
+    const err = new Error('Record not found.');
+    err.status = 404;
+    throw err;
+  }
+  const record = recordRes.rows[0];
+
+  const tracksRes = await clientOrPool.query('SELECT * FROM tracks WHERE record_id = $1', [recordId]);
+  const tracks = tracksRes.rows;
+
+  const artworkUrls = new Set();
+  const audioUrls = new Set();
+
+  if (record.artwork_url) artworkUrls.add(record.artwork_url);
+  for (const t of tracks) {
+    if (t.artwork_url) artworkUrls.add(t.artwork_url);
+    if (t.audio_url) audioUrls.add(t.audio_url);
+  }
+
+  // 3. Delete from DB (tracks cascade delete in PostgreSQL)
+  await clientOrPool.query('DELETE FROM records WHERE id = $1', [recordId]);
+
+  // 4. Delete album ZIP directory
+  deleteAlbumZip(recordId);
+
+  // 5. Clean up unreferenced artwork files on disk
+  for (const artUrl of artworkUrls) {
+    try {
+      const stillUsedRecord = await clientOrPool.query(
+        'SELECT id FROM records WHERE artwork_url = $1 LIMIT 1',
+        [artUrl]
+      );
+      const stillUsedTrack = await clientOrPool.query(
+        'SELECT id FROM tracks WHERE artwork_url = $1 LIMIT 1',
+        [artUrl]
+      );
+      if (!stillUsedRecord.rows.length && !stillUsedTrack.rows.length) {
+        const absPath = resolveUploadPath(artUrl);
+        if (absPath && fs.existsSync(absPath)) {
+          fs.unlinkSync(absPath);
+        }
+      }
+    } catch (e) {
+      console.warn('[records] Artwork file cleanup notice:', e.message);
+    }
+  }
+
+  // 6. Clean up unreferenced audio files on disk
+  for (const audUrl of audioUrls) {
+    try {
+      const stillUsedAudio = await clientOrPool.query(
+        'SELECT id FROM tracks WHERE audio_url = $1 LIMIT 1',
+        [audUrl]
+      );
+      if (!stillUsedAudio.rows.length) {
+        const absPath = resolveUploadPath(audUrl);
+        if (absPath && fs.existsSync(absPath)) {
+          fs.unlinkSync(absPath);
+        }
+      }
+    } catch (e) {
+      console.warn('[records] Audio file cleanup notice:', e.message);
+    }
+  }
+
+  return {
+    success: true,
+    message: `Record "${record.title}" and associated assets deleted successfully.`,
+  };
+}
+
 /* ── DELETE /api/records/:id — protected ── */
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      'DELETE FROM records WHERE id = $1 RETURNING *',
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Record not found.' });
-
-    // Tracks are cascade deleted in DB.
-    res.json({ message: 'Record deleted.' });
+    const result = await deleteRecordAndAssets(req.params.id);
+    res.json(result);
   } catch (err) {
     console.error('[records] DELETE error:', err);
-    res.status(500).json({ error: 'Failed to delete record.' });
+    if (err.status === 409) {
+      return res.status(409).json({ error: err.message });
+    }
+    if (err.status === 404) {
+      return res.status(404).json({ error: 'Record not found.' });
+    }
+    res.status(500).json({ error: err.message || 'Failed to delete record.' });
   }
 });
 
+router.deleteRecordAndAssets = deleteRecordAndAssets;
 module.exports = router;
+

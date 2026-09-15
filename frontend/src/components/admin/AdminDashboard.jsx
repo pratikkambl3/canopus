@@ -1,20 +1,28 @@
 import { useState } from 'react';
 import { deleteRecord } from '../../services/recordsService';
-import { updateProduct } from '../../services/adminStoreService';
+import { updateProduct, deleteProduct } from '../../services/adminStoreService';
 import { signOut } from '../../services/authService';
 import AddRecordForm from './AddRecordForm';
 import ProductManagerModal from './ProductManagerModal';
 import AdminOrdersTab from './AdminOrdersTab';
 import AdminSupportTab from './AdminSupportTab';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
+import AdminQrPanel from './AdminQrPanel';
 
 export default function AdminDashboard({ records, onRecordsChange }) {
   const [activeTab, setActiveTab]         = useState('records'); // 'records', 'products', 'orders', 'support'
   const [showForm, setShowForm]           = useState(false);
   const [editRecord, setEditRecord]       = useState(null);
-  const [deleting, setDeleting]           = useState(null);
+  const [deleting, setDeleting]           = useState(null); // eslint-disable-line no-unused-vars
   const [productRecord, setProductRecord] = useState(null); // record selected for ProductManagerModal
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [isProductFormMode, setIsProductFormMode]       = useState(false);
+
+  // Confirm delete modal state
+  const [confirmDelete, setConfirmDelete] = useState(null); // { record, type: 'record' | 'product' }
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const [deleteSuccessMsg, setDeleteSuccessMsg] = useState(null);
 
   // Separate library records from product-only records
   const libraryRecords = records.filter(r => !r.isProductOnly && !r.is_product_only);
@@ -24,19 +32,46 @@ export default function AdminDashboard({ records, onRecordsChange }) {
   const [editingPriceVal, setEditingPriceVal] = useState('');
   const [savingPriceId, setSavingPriceId]   = useState(null);
 
+  const openDeleteConfirm = (record, type) => {
+    setDeleteError(null);
+    setConfirmDelete({ record, type });
+  };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this record permanently?')) return;
-    setDeleting(id);
+  const closeDeleteConfirm = () => {
+    if (deleteInProgress) return;
+    setConfirmDelete(null);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async (storeOnly) => {
+    if (!confirmDelete) return;
+    setDeleteInProgress(true);
+    setDeleteError(null);
     try {
-      await deleteRecord(id);
+      if (confirmDelete.type === 'record') {
+        await deleteRecord(confirmDelete.record.id);
+        setConfirmDelete(null);
+        setDeleteSuccessMsg(`"${confirmDelete.record.title}" deleted from library.`);
+      } else {
+        await deleteProduct(confirmDelete.record.id, storeOnly);
+        setConfirmDelete(null);
+        setDeleteSuccessMsg(
+          storeOnly
+            ? `"${confirmDelete.record.title}" removed from store. Record preserved in library.`
+            : `"${confirmDelete.record.title}" permanently deleted.`
+        );
+      }
       onRecordsChange();
+      setTimeout(() => setDeleteSuccessMsg(null), 5000);
     } catch (e) {
-      alert('Delete failed. Please try again.');
+      setDeleteError(e.message || 'Delete failed. Please try again.');
     } finally {
-      setDeleting(null);
+      setDeleteInProgress(false);
     }
   };
+
+  const handleDelete = (record) => openDeleteConfirm(record, 'record');
+  const handleDeleteProduct = (record) => openDeleteConfirm(record, 'product');
 
   const handleEdit = (record) => {
     setIsProductFormMode(Boolean(record.isProductOnly || record.is_product_only));
@@ -155,6 +190,12 @@ export default function AdminDashboard({ records, onRecordsChange }) {
         >
           Support Queries
         </button>
+        <button
+          className={`admin-tab-btn${activeTab === 'payment-qr' ? ' active' : ''}`}
+          onClick={() => setActiveTab('payment-qr')}
+        >
+          Payment QR
+        </button>
       </div>
 
       {/* TAB 1: RECORDS */}
@@ -187,10 +228,10 @@ export default function AdminDashboard({ records, onRecordsChange }) {
                   <button className="btn-ghost" onClick={() => handleEdit(record)}>Edit</button>
                   <button
                     className="btn-danger"
-                    onClick={() => handleDelete(record.id)}
-                    disabled={deleting === record.id}
+                    onClick={() => handleDelete(record)}
+                    disabled={deleteInProgress && confirmDelete?.record?.id === record.id}
                   >
-                    {deleting === record.id ? '…' : 'Delete'}
+                    {deleteInProgress && confirmDelete?.record?.id === record.id ? '…' : 'Delete'}
                   </button>
                 </div>
               </div>
@@ -202,6 +243,11 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {/* TAB 2: PRODUCTS STORE */}
       {activeTab === 'products' && (
         <div className="admin-tab-content">
+          {deleteSuccessMsg && (
+            <div className="admin-success-banner" role="status">
+              ✓ {deleteSuccessMsg}
+            </div>
+          )}
           <div className="admin-products-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12, paddingBottom: 16, borderBottom: '1px solid var(--border-subtle, #e5e3dc)' }}>
             <div className="admin-products-intro" style={{ margin: 0, flex: 1, minWidth: 260 }}>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
@@ -334,12 +380,31 @@ export default function AdminDashboard({ records, onRecordsChange }) {
                         </div>
                       </div>
 
-                      <button
-                        className="btn-secondary admin-product-card__manage-btn"
-                        onClick={() => setProductRecord(record)}
-                      >
-                        Configure Product & ZIP
-                      </button>
+                      <div className="admin-product-card__actions">
+                        <button
+                          className="btn-secondary admin-product-card__manage-btn"
+                          onClick={() => setProductRecord(record)}
+                        >
+                          Configure Product &amp; ZIP
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          style={{ fontSize: 12, padding: '6px 12px' }}
+                          onClick={() => handleEdit(record)}
+                        >
+                          Edit Details
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-danger"
+                          style={{ fontSize: 12, padding: '6px 12px' }}
+                          onClick={() => handleDeleteProduct(record)}
+                          disabled={deleteInProgress && confirmDelete?.record?.id === record.id}
+                        >
+                          {deleteInProgress && confirmDelete?.record?.id === record.id ? '…' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -360,6 +425,13 @@ export default function AdminDashboard({ records, onRecordsChange }) {
       {activeTab === 'support' && (
         <div className="admin-tab-content">
           <AdminSupportTab />
+        </div>
+      )}
+
+      {/* TAB 5: PAYMENT QR */}
+      {activeTab === 'payment-qr' && (
+        <div className="admin-tab-content">
+          <AdminQrPanel />
         </div>
       )}
 
@@ -510,6 +582,17 @@ export default function AdminDashboard({ records, onRecordsChange }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Confirm Delete Modal */}
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          record={confirmDelete.record}
+          onConfirm={handleConfirmDelete}
+          onCancel={closeDeleteConfirm}
+          isLoading={deleteInProgress}
+          error={deleteError}
+        />
       )}
     </div>
   );

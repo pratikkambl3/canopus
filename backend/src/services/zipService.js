@@ -199,5 +199,6 @@ function deleteAlbumZip(recordId) {
 module.exports = {
   generateAlbumZip,
   deleteAlbumZip,
+  resolveUploadPath,
   DIGITAL_PRODUCTS_PATH,
 };

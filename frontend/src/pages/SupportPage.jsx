@@ -85,7 +85,7 @@ export default function SupportPage() {
             <dl className="support-info-panel__list">
               <div className="support-info-item">
                 <dt>General & Orders</dt>
-                <dd>support@canopus.live</dd>
+                <dd><a href="mailto:mr.canopus111@gmail.com">mr.canopus111@gmail.com</a></dd>
               </div>
 
               <div className="support-info-item">
@@ -99,9 +99,6 @@ export default function SupportPage() {
               </div>
             </dl>
 
-            <div className="support-info-panel__badge">
-              <span>●</span> Active Archives Concierge
-            </div>
           </aside>
 
           {/* Right Column: Inquiry Form */}

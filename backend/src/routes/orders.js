@@ -221,23 +221,101 @@ router.post('/', async (req, res) => {
   }
 });
 
-/* ── GET /api/orders/payment-qr/download — public (download QR image file) ── */
-router.get('/payment-qr/download', (_req, res) => {
-  const possiblePaths = [
-    path.join(__dirname, '../public/payment-qr.png'),
-    path.join(__dirname, '../../public/payment-qr.png'),
-    path.join(process.env.UPLOAD_DIR || '/app/uploads', 'payment-qr.png'),
-    path.join(__dirname, '../../../frontend/public/payment-qr.png'),
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      res.setHeader('Content-Type', 'image/png');
-      return res.download(p, 'payment-qr.png');
+/* ── Helper: get active QR slot from DB (1, 2, or 3) ── */
+async function getActiveQrSlot() {
+  try {
+    const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'active_qr_slot'");
+    if (rows.length && rows[0].value) {
+      const slot = parseInt(rows[0].value, 10);
+      if (slot >= 1 && slot <= 3) return slot;
     }
+  } catch (err) {
+    console.warn('[orders] Could not read active_qr_slot:', err.message);
   }
+  return 1; // default to slot 1
+}
 
-  res.status(404).json({ error: 'Payment QR image not found.' });
+/* ── Helper: resolve QR image file path from slot ── */
+function resolveQrPath(slot) {
+  const filename = `payment-qr-${slot}.png`;
+  const candidates = [
+    path.join(__dirname, `../public/${filename}`),
+    path.join(__dirname, `../../public/${filename}`),
+    path.join(__dirname, `../../../frontend/public/${filename}`),
+    path.join(process.env.UPLOAD_DIR || '/app/uploads', filename),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+/* ── GET /api/orders/payment-qr/active — public (get active QR slot info) ── */
+router.get('/payment-qr/active', async (_req, res) => {
+  try {
+    const slot = await getActiveQrSlot();
+    res.json({
+      slot,
+      imageUrl: `/payment-qr-${slot}.png`,
+      downloadUrl: `/api/orders/payment-qr/download`,
+    });
+  } catch (err) {
+    console.error('[orders] GET /payment-qr/active error:', err);
+    res.status(500).json({ error: 'Failed to fetch active QR.' });
+  }
+});
+
+/* ── PUT /api/orders/payment-qr/slot — protected (admin: switch active QR slot) ── */
+router.put('/payment-qr/slot', authenticate, async (req, res) => {
+  try {
+    const slot = parseInt(req.body.slot, 10);
+    if (isNaN(slot) || slot < 1 || slot > 3) {
+      return res.status(400).json({ error: 'Slot must be 1, 2, or 3.' });
+    }
+    // Verify the QR image for this slot exists
+    const qrPath = resolveQrPath(slot);
+    if (!qrPath) {
+      return res.status(400).json({ error: `QR image for slot ${slot} not found on server.` });
+    }
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('active_qr_slot', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [String(slot)]
+    );
+    res.json({ success: true, slot, imageUrl: `/payment-qr-${slot}.png` });
+  } catch (err) {
+    console.error('[orders] PUT /payment-qr/slot error:', err);
+    res.status(500).json({ error: 'Failed to update active QR slot.' });
+  }
+});
+
+/* ── GET /api/orders/payment-qr/download — public (download active QR image) ── */
+router.get('/payment-qr/download', async (_req, res) => {
+  try {
+    const slot = await getActiveQrSlot();
+    const qrPath = resolveQrPath(slot);
+    if (qrPath) {
+      res.setHeader('Content-Type', 'image/png');
+      return res.download(qrPath, `payment-qr-${slot}.png`);
+    }
+    // Fallback to legacy payment-qr.png
+    const legacyCandidates = [
+      path.join(__dirname, '../public/payment-qr.png'),
+      path.join(__dirname, '../../public/payment-qr.png'),
+      path.join(__dirname, '../../../frontend/public/payment-qr.png'),
+      path.join(process.env.UPLOAD_DIR || '/app/uploads', 'payment-qr.png'),
+    ];
+    for (const p of legacyCandidates) {
+      if (fs.existsSync(p)) {
+        res.setHeader('Content-Type', 'image/png');
+        return res.download(p, 'payment-qr.png');
+      }
+    }
+    res.status(404).json({ error: 'Payment QR image not found.' });
+  } catch (err) {
+    console.error('[orders] GET /payment-qr/download error:', err);
+    res.status(404).json({ error: 'Payment QR image not found.' });
+  }
 });
 
 /* ── GET /api/orders/:id — public (customer confirmation check) ── */
