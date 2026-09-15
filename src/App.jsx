@@ -20,11 +20,12 @@ function AppInner() {
     <>
       <Header />
       <Routes location={location} key={location.pathname}>
-        <Route path="/"        element={<RadioPage />} />
-        <Route path="/records" element={<RecordsPage />} />
-        <Route path="/about"   element={<AboutPage />} />
-        <Route path="/admin"   element={<AdminPage />} />
-        <Route path="*"        element={<RadioPage />} />
+        <Route path="/"                            element={<RadioPage />} />
+        <Route path="/records"                     element={<RecordsPage />} />
+        <Route path="/about"                       element={<AboutPage />} />
+        <Route path="/loginWithSuperCreds=True"    element={<AdminPage />} />
+        <Route path="/loginWithSuperCreds=true"    element={<AdminPage />} />
+        <Route path="*"                            element={<RadioPage />} />
       </Routes>
     </>
   );
