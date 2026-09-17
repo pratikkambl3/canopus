@@ -19,10 +19,11 @@ export default function CheckoutPage() {
   const [customerPhone, setCustomerPhone]       = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError]           = useState(null);
-  const [copied, setCopied]         = useState(false);
-  const [isMobile, setIsMobile]     = useState(false);
+  const [submitting, setSubmitting]         = useState(false);
+  const [error, setError]                   = useState(null);
+  const [copied, setCopied]                 = useState(false);
+  const [isMobile, setIsMobile]             = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Active QR: fetched dynamically from backend (admin-switchable)
   const [activeQrSlot, setActiveQrSlot] = useState(1);
@@ -53,10 +54,15 @@ export default function CheckoutPage() {
   }, []);
 
   // UPI configuration
-  const upiId = import.meta.env.VITE_PAYMENT_UPI_ID || 'pratik.kamble11@ybl';
-  const payeeName = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Pratik Prakash Kamble';
+  const upiId     = import.meta.env.VITE_PAYMENT_UPI_ID     || 'Q277987486@ybl';
+  const payeeName = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Canopusrecords';
   const downloadQrUrl = `${import.meta.env.VITE_API_URL || '/api'}/orders/payment-qr/download`;
-  const upiDeepLink = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(cartTotal)}&cu=INR&tn=${encodeURIComponent('CANOPUS Order')}`;
+
+  // Per-app UPI deep links
+  const upiParams = `pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(cartTotal)}&cu=INR&tn=${encodeURIComponent('CANOPUS Order')}`;
+  const phonePeLink = `phonepe://pay?${upiParams}`;
+  const gpayLink    = `gpay://upi/pay?${upiParams}`;
+  const paytmLink   = `paytmmp://pay?${upiParams}`;
 
 
   if (cartItems.length === 0) {
@@ -234,21 +240,72 @@ export default function CheckoutPage() {
                 <span className="checkout-payment__amount">₹{cartTotal}</span>
               </div>
 
-              {/* Mobile Quick Pay Intent */}
+              {/* Quick Pay Button */}
               <div className="checkout-payment__quick-actions">
-                <a
-                  href={upiDeepLink}
+                <button
+                  type="button"
                   className="btn-primary checkout-payment__upi-app-btn"
                   id="pay-with-upi-app-btn"
+                  onClick={() => setShowPaymentModal(true)}
                 >
-                  ⚡ Open in UPI App (GPay / PhonePe / Paytm)
-                </a>
+                  ⚡ Pay Now — ₹{cartTotal}
+                </button>
                 <p className="checkout-payment__upi-hint">
                   {isMobile
-                    ? 'Tap above to launch your UPI app with payee and amount pre-filled.'
-                    : 'On mobile, this opens your UPI app directly. On desktop, please scan the QR code below.'}
+                    ? 'Tap above to choose your UPI app.'
+                    : 'Click above to see payment options, or scan the QR code below.'}
                 </p>
               </div>
+
+              {/* ===== Payment Selector Modal ===== */}
+              {showPaymentModal && (
+                <div
+                  className="upi-modal-overlay"
+                  onClick={() => setShowPaymentModal(false)}
+                >
+                  <div
+                    className="upi-modal-card"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <h3 className="upi-modal__title">Complete Payment</h3>
+                    <p className="upi-modal__amount">Total: <strong>₹{cartTotal}</strong></p>
+
+                    {/* Mobile: Show app buttons */}
+                    {isMobile ? (
+                      <div className="upi-modal__app-buttons">
+                        <a href={phonePeLink} className="upi-modal__app-btn upi-modal__app-btn--phonepe">
+                          <span className="upi-modal__app-icon">📲</span> Pay via PhonePe
+                        </a>
+                        <a href={gpayLink} className="upi-modal__app-btn upi-modal__app-btn--gpay">
+                          <span className="upi-modal__app-icon">💳</span> Pay via Google Pay
+                        </a>
+                        <a href={paytmLink} className="upi-modal__app-btn upi-modal__app-btn--paytm">
+                          <span className="upi-modal__app-icon">🔵</span> Pay via Paytm
+                        </a>
+                      </div>
+                    ) : (
+                      /* Desktop: Show PhonePe QR */
+                      <div className="upi-modal__qr-wrap">
+                        <p className="upi-modal__qr-hint">Scan with any UPI app on your phone</p>
+                        <img
+                          src="/payment-qr-phonepe.png"
+                          alt="PhonePe QR — Canopusrecords"
+                          className="upi-modal__qr-img"
+                        />
+                        <p className="upi-modal__upi-id">UPI: <strong>{upiId}</strong></p>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="upi-modal__close-btn"
+                      onClick={() => setShowPaymentModal(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="checkout-payment__qr-card">
                 <div className="checkout-payment__qr-card-header">
@@ -269,8 +326,8 @@ export default function CheckoutPage() {
                 <div className="checkout-payment__qr-wrap">
                   <div className="upi-qr-display">
                     <img
-                      src={qrImageUrl}
-                      alt="UPI QR Code - Pratik Prakash Kamble"
+                      src="/payment-qr-phonepe.png"
+                      alt="PhonePe QR Code — Canopusrecords"
                       className="upi-qr-image"
                     />
                     <span className="upi-qr-label">SCAN TO PAY WITH ANY UPI APP</span>

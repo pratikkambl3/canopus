@@ -5355,6 +5355,158 @@ input:checked + .slider:before {
   margin: 16px 0;
 }
 
+/* ===== UPI Payment Selector Modal ===== */
+.upi-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: upi-overlay-in 0.2s ease;
+}
+
+@keyframes upi-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.upi-modal-card {
+  background: #ffffff;
+  width: 100%;
+  max-width: 380px;
+  border-radius: 16px;
+  padding: 28px 24px 20px;
+  text-align: center;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: upi-card-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes upi-card-in {
+  from { opacity: 0; transform: scale(0.88) translateY(20px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+.upi-modal__title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.upi-modal__amount {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.upi-modal__amount strong {
+  color: #111;
+  font-size: 16px;
+}
+
+/* App button list */
+.upi-modal__app-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.upi-modal__app-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.upi-modal__app-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.upi-modal__app-btn:active {
+  transform: translateY(0);
+}
+
+.upi-modal__app-btn--phonepe {
+  background: linear-gradient(135deg, #5f259f 0%, #7b37c8 100%);
+}
+
+.upi-modal__app-btn--gpay {
+  background: linear-gradient(135deg, #0F9D58 0%, #17c068 100%);
+}
+
+.upi-modal__app-btn--paytm {
+  background: linear-gradient(135deg, #00b9f5 0%, #0090cc 100%);
+}
+
+.upi-modal__app-icon {
+  font-size: 18px;
+}
+
+/* Desktop QR */
+.upi-modal__qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.upi-modal__qr-hint {
+  font-size: 13px;
+  color: #4b5563;
+  margin: 0;
+}
+
+.upi-modal__qr-img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.upi-modal__upi-id {
+  font-size: 13px;
+  color: #374151;
+  margin: 0;
+}
+
+/* Cancel button */
+.upi-modal__close-btn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+  margin-top: 4px;
+}
+
+.upi-modal__close-btn:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
 
 
 /* ================================================================
