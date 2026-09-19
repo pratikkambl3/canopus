@@ -11,15 +11,6 @@ const jwt     = require('jsonwebtoken');
 
 const { pool } = require('../db');
 
-/* ── Lazy-hash the admin password so we can use a plain-text env var ── */
-let cachedHash = null;
-async function getAdminHash() {
-  if (!cachedHash) {
-    cachedHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'canopus2026', 10);
-  }
-  return cachedHash;
-}
-
 /* POST /api/auth/login */
 router.post('/login', async (req, res) => {
   try {
@@ -30,15 +21,17 @@ router.post('/login', async (req, res) => {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
-    const cleanPass = String(password).trim();
+    const cleanPass  = String(password).trim();
 
     let authenticated = false;
     let role = 'admin';
+    let dbRowExists = false;
 
     // 1. Query admin_users from database
     try {
       const { rows } = await pool.query('SELECT * FROM admin_users WHERE LOWER(email) = $1', [cleanEmail]);
       if (rows.length > 0) {
+        dbRowExists = true;
         const match = await bcrypt.compare(cleanPass, rows[0].password_hash);
         if (match) {
           authenticated = true;
@@ -49,18 +42,34 @@ router.post('/login', async (req, res) => {
       console.warn('[auth] DB admin check notice:', dbErr.message);
     }
 
-    // 2. Fallback check: env credentials or direct password match
+    // 2. Fallback: always check env credentials even if DB row exists
+    //    This handles stale/mismatched DB hashes (e.g. after password change in .env)
     if (!authenticated) {
       const envEmail = (process.env.ADMIN_EMAIL || 'admin@canopus.local').toLowerCase();
-      const envPass  = process.env.ADMIN_PASSWORD || 'canopus2026';
+      const envPass  = process.env.ADMIN_PASSWORD || 'canopus_admin_2024';
 
-      if (cleanEmail === envEmail) {
-        if (cleanPass === envPass || cleanPass === 'canopus2026' || cleanPass === 'canopus_admin_2024') {
-          authenticated = true;
-        } else {
-          const storedHash = await getAdminHash();
-          const match = await bcrypt.compare(cleanPass, storedHash);
-          if (match) authenticated = true;
+      if (cleanEmail === envEmail && cleanPass === envPass) {
+        authenticated = true;
+
+        // Self-heal: update the DB hash so future logins use the DB path correctly
+        try {
+          const newHash = await bcrypt.hash(envPass, 10);
+          if (dbRowExists) {
+            await pool.query(
+              `UPDATE admin_users SET password_hash = $1, updated_at = NOW() WHERE LOWER(email) = $2`,
+              [newHash, envEmail]
+            );
+          } else {
+            await pool.query(
+              `INSERT INTO admin_users (id, email, password_hash, role)
+               VALUES ('admin-01', $1, $2, 'admin')
+               ON CONFLICT (email) DO UPDATE SET password_hash = $2, updated_at = NOW()`,
+              [envEmail, newHash]
+            );
+          }
+          console.log('[auth] DB admin hash self-healed from env credentials.');
+        } catch (healErr) {
+          console.warn('[auth] Could not self-heal DB hash:', healErr.message);
         }
       }
     }
