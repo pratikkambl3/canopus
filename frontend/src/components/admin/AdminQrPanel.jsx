@@ -1,29 +1,82 @@
-﻿/* ================================================================
+/* ================================================================
    CANOPUS — Admin QR Panel
-   Allows admin to switch the active payment QR code shown to customers.
+   • Switch the active payment QR code (slot 1, 2, 3)
+   • Upload a new QR image for any slot
+   • Delete / reset any slot's QR image
+   • Toggle the "Pay Now" button on the checkout page
    ================================================================ */
 
-import { useState, useEffect } from 'react';
-import { getActiveQrSlot, switchQrSlot } from '../../services/adminStoreService';
+import { useState, useEffect, useRef } from 'react';
+import {
+  getActiveQrSlot,
+  switchQrSlot,
+  uploadQrImage,
+  deleteQrImage,
+  getQrSettings,
+  updatePayNowSetting,
+} from '../../services/adminStoreService';
 
 const QR_SLOTS = [
-  { slot: 1, label: 'QR Code 1', src: '/payment-qr-1.png' },
-  { slot: 2, label: 'QR Code 2', src: '/payment-qr-2.png' },
-  { slot: 3, label: 'QR Code 3', src: '/payment-qr-3.png' },
+  { slot: 1, label: 'QR Code 1' },
+  { slot: 2, label: 'QR Code 2' },
+  { slot: 3, label: 'QR Code 3' },
 ];
 
-export default function AdminQrPanel() {
-  const [activeSlot, setActiveSlot] = useState(null);
-  const [switching, setSwitching]   = useState(null); // slot being switched to
-  const [error, setError]           = useState(null);
-  const [successMsg, setSuccessMsg] = useState(null);
+/* ── small helper: bust the browser image cache by appending timestamp ── */
+function cacheBustedUrl(slot) {
+  return `/payment-qr-${slot}.png?t=${Date.now()}`;
+}
 
+export default function AdminQrPanel() {
+  const [activeSlot, setActiveSlot]       = useState(null);
+  const [payNowEnabled, setPayNowEnabled] = useState(true);
+  const [switching, setSwitching]         = useState(null);
+  const [togglingPay, setTogglingPay]     = useState(false);
+  const [error, setError]                 = useState(null);
+  const [successMsg, setSuccessMsg]       = useState(null);
+
+  /* per-slot upload / delete state */
+  const [uploadingSlot, setUploadingSlot] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [deletingSlot, setDeletingSlot]   = useState(null);
+  /* cache-busting timestamps so images reload after upload/delete */
+  const [imgTs, setImgTs] = useState({ 1: Date.now(), 2: Date.now(), 3: Date.now() });
+
+  /* hidden file inputs — one per slot */
+  const fileRefs = {
+    1: useRef(null),
+    2: useRef(null),
+    3: useRef(null),
+  };
+
+  /* ── initial load ── */
   useEffect(() => {
-    getActiveQrSlot()
-      .then(data => setActiveSlot(data.slot))
-      .catch(() => setActiveSlot(1));
+    getQrSettings()
+      .then(data => {
+        setActiveSlot(data.slot ?? 1);
+        setPayNowEnabled(data.payNowEnabled !== false);
+      })
+      .catch(() => {
+        // fallback: try just the active slot
+        getActiveQrSlot()
+          .then(d => setActiveSlot(d.slot ?? 1))
+          .catch(() => setActiveSlot(1));
+      });
   }, []);
 
+  /* ── helpers ── */
+  const showSuccess = (msg) => {
+    setError(null);
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 6000);
+  };
+
+  const showError = (msg) => {
+    setSuccessMsg(null);
+    setError(msg);
+  };
+
+  /* ── switch active QR slot ── */
   const handleSwitch = async (slot) => {
     if (slot === activeSlot || switching !== null) return;
     setError(null);
@@ -32,28 +85,105 @@ export default function AdminQrPanel() {
     try {
       const res = await switchQrSlot(slot);
       setActiveSlot(res.slot);
-      setSuccessMsg(`QR Code ${res.slot} is now active. Customers will see the new QR immediately.`);
-      setTimeout(() => setSuccessMsg(null), 6000);
+      showSuccess(`QR Code ${res.slot} is now active. Customers will see it immediately.`);
     } catch (e) {
-      setError(e.message || 'Failed to switch QR. Please try again.');
+      showError(e.message || 'Failed to switch QR. Please try again.');
     } finally {
       setSwitching(null);
     }
   };
 
+  /* ── upload QR image for a slot ── */
+  const handleUploadClick = (slot) => {
+    if (fileRefs[slot]?.current) fileRefs[slot].current.click();
+  };
+
+  const handleFileChange = async (slot, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // reset so same file can be re-selected
+    e.target.value = '';
+
+    setUploadingSlot(slot);
+    setUploadProgress(0);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await uploadQrImage(slot, file, (pct) => setUploadProgress(pct));
+      // bust cache so the <img> reloads the new file
+      setImgTs(prev => ({ ...prev, [slot]: Date.now() }));
+      // If this slot was active, keep it active
+      showSuccess(`QR Code ${slot} image uploaded successfully.`);
+    } catch (e) {
+      showError(e.message || `Failed to upload QR ${slot}. Please try again.`);
+    } finally {
+      setUploadingSlot(null);
+      setUploadProgress(0);
+    }
+  };
+
+  /* ── delete QR image for a slot ── */
+  const handleDelete = async (slot) => {
+    if (!window.confirm(`Delete the image for QR Code ${slot}? You can upload a new one afterwards.`)) return;
+    setDeletingSlot(slot);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await deleteQrImage(slot);
+      // bust cache
+      setImgTs(prev => ({ ...prev, [slot]: Date.now() }));
+      // If the deleted slot was the active one, update activeSlot from response (backend switches it)
+      if (slot === activeSlot) {
+        // refetch to get the new active
+        const fresh = await getActiveQrSlot().catch(() => ({ slot: slot === 1 ? 2 : 1 }));
+        setActiveSlot(fresh.slot);
+      }
+      showSuccess(res.message || `QR Code ${slot} image removed.`);
+    } catch (e) {
+      showError(e.message || `Failed to delete QR ${slot}. Please try again.`);
+    } finally {
+      setDeletingSlot(null);
+    }
+  };
+
+  /* ── toggle Pay Now button ── */
+  const handleTogglePayNow = async () => {
+    setTogglingPay(true);
+    setError(null);
+    setSuccessMsg(null);
+    const newVal = !payNowEnabled;
+    try {
+      const res = await updatePayNowSetting(newVal);
+      setPayNowEnabled(res.payNowEnabled);
+      showSuccess(
+        res.payNowEnabled
+          ? '"Pay Now" button is now visible to customers.'
+          : '"Pay Now" button is now hidden from customers.'
+      );
+    } catch (e) {
+      showError(e.message || 'Failed to update Pay Now setting.');
+    } finally {
+      setTogglingPay(false);
+    }
+  };
+
+  /* ── render ── */
   return (
     <div className="admin-qr-panel">
+
+      {/* ── Panel header ── */}
       <div className="admin-qr-panel__header">
         <div>
           <span className="admin-qr-panel__eyebrow">PAYMENT SETTINGS</span>
           <h2 className="admin-qr-panel__title">UPI QR Code Manager</h2>
         </div>
         <p className="admin-qr-panel__desc">
-          Switch the payment QR code shown to customers at checkout. Activate the next QR when you want to rotate to a new account.
-          The change is instant — no rebuild required.
+          Switch which QR is shown to customers, upload new QR images, and control
+          the "Pay Now" button visibility. All changes are instant — no rebuild required.
         </p>
       </div>
 
+      {/* ── Global alerts ── */}
       {error && (
         <div className="admin-qr-panel__error" role="alert">
           <span>⚠</span> {error}
@@ -65,6 +195,7 @@ export default function AdminQrPanel() {
         </div>
       )}
 
+      {/* ── Active slot banner ── */}
       {activeSlot !== null && (
         <div className="admin-qr-status-banner">
           <span className="admin-qr-status-badge">ACTIVE</span>
@@ -72,10 +203,40 @@ export default function AdminQrPanel() {
         </div>
       )}
 
+      {/* ── Pay Now Toggle ── */}
+      <div className="admin-qr-pay-now-toggle">
+        <div className="admin-qr-pay-now-toggle__info">
+          <span className="admin-qr-pay-now-toggle__label">⚡ "Pay Now" Button</span>
+          <span className="admin-qr-pay-now-toggle__desc">
+            {payNowEnabled
+              ? 'Visible to customers on the checkout page'
+              : 'Hidden — customers see only the QR code and UTR form'}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={`admin-qr-toggle-btn${payNowEnabled ? ' admin-qr-toggle-btn--on' : ' admin-qr-toggle-btn--off'}`}
+          onClick={handleTogglePayNow}
+          disabled={togglingPay}
+          aria-pressed={payNowEnabled}
+          id="pay-now-toggle-btn"
+        >
+          <span className="admin-qr-toggle-btn__track">
+            <span className="admin-qr-toggle-btn__thumb" />
+          </span>
+          <span className="admin-qr-toggle-btn__text">
+            {togglingPay ? 'Saving…' : payNowEnabled ? 'ON' : 'OFF'}
+          </span>
+        </button>
+      </div>
+
+      {/* ── QR Slot Cards ── */}
       <div className="admin-qr-grid">
-        {QR_SLOTS.map(({ slot, label, src }) => {
-          const isActive = activeSlot === slot;
+        {QR_SLOTS.map(({ slot, label }) => {
+          const isActive    = activeSlot === slot;
           const isSwitching = switching === slot;
+          const isUploading = uploadingSlot === slot;
+          const isDeleting  = deletingSlot === slot;
 
           return (
             <div
@@ -83,24 +244,46 @@ export default function AdminQrPanel() {
               className={`admin-qr-card${isActive ? ' admin-qr-card--active' : ''}`}
             >
               {isActive && (
-                <div className="admin-qr-card__active-ribbon">
-                  ✓ ACTIVE
-                </div>
+                <div className="admin-qr-card__active-ribbon">✓ ACTIVE</div>
               )}
 
+              {/* QR Image */}
               <div className="admin-qr-card__img-wrap">
                 <img
-                  src={src}
+                  key={imgTs[slot]}
+                  src={`/payment-qr-${slot}.png?t=${imgTs[slot]}`}
                   alt={`Payment QR Code ${slot}`}
                   className="admin-qr-card__img"
-                  onError={(e) => { e.target.style.opacity = '0.3'; }}
+                  onError={(e) => { e.target.style.opacity = '0.15'; }}
                 />
+                {isUploading && (
+                  <div className="admin-qr-card__upload-overlay">
+                    <div className="admin-qr-card__upload-progress">
+                      <div
+                        className="admin-qr-card__upload-bar"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <span className="admin-qr-card__upload-pct">{uploadProgress}%</span>
+                  </div>
+                )}
               </div>
 
+              {/* Hidden file input */}
+              <input
+                ref={fileRefs[slot]}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={(e) => handleFileChange(slot, e)}
+              />
+
+              {/* Card body */}
               <div className="admin-qr-card__body">
                 <p className="admin-qr-card__label">{label}</p>
                 <p className="admin-qr-card__slot-num">Slot {slot}</p>
 
+                {/* Activate / Already Active */}
                 {isActive ? (
                   <button
                     type="button"
@@ -114,20 +297,49 @@ export default function AdminQrPanel() {
                     type="button"
                     className="btn-primary admin-qr-card__btn"
                     onClick={() => handleSwitch(slot)}
-                    disabled={switching !== null}
+                    disabled={switching !== null || isUploading || isDeleting}
                   >
                     {isSwitching ? 'Activating…' : `Activate QR ${slot}`}
                   </button>
                 )}
+
+                {/* Upload new QR */}
+                <button
+                  type="button"
+                  className="btn-secondary admin-qr-card__btn admin-qr-card__upload-btn"
+                  onClick={() => handleUploadClick(slot)}
+                  disabled={isUploading || isDeleting || switching !== null}
+                  id={`upload-qr-${slot}-btn`}
+                >
+                  {isUploading
+                    ? `Uploading… ${uploadProgress}%`
+                    : '⬆ Upload New QR'}
+                </button>
+
+                {/* Delete / reset QR */}
+                <button
+                  type="button"
+                  className="btn-danger admin-qr-card__btn admin-qr-card__delete-btn"
+                  onClick={() => handleDelete(slot)}
+                  disabled={isDeleting || isUploading || switching !== null}
+                  id={`delete-qr-${slot}-btn`}
+                  style={{ fontSize: 12, marginTop: 4 }}
+                >
+                  {isDeleting ? 'Deleting…' : '🗑 Delete QR Image'}
+                </button>
               </div>
             </div>
           );
         })}
       </div>
 
+      {/* ── Usage note ── */}
       <div className="admin-qr-panel__note">
-        <strong>How to use:</strong> When you receive multiple payments on one QR, click "Activate" on the next QR code to switch.
-        Customers visiting the checkout page will immediately see the new QR code without any app reload needed.
+        <strong>How to use:</strong>{' '}
+        Upload a PNG/JPG QR image for each slot. Click <em>Activate</em> to make a slot live.
+        Rotate between slots when you want to switch UPI accounts. Use <em>Delete</em> to
+        remove a QR image and upload a fresh one. The <strong>Pay Now</strong> toggle hides
+        or shows the ⚡ button on the checkout page — the QR code and UTR form remain active.
       </div>
     </div>
   );

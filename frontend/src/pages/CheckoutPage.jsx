@@ -27,7 +27,8 @@ export default function CheckoutPage() {
 
   // Active QR: fetched dynamically from backend (admin-switchable)
   const [activeQrSlot, setActiveQrSlot] = useState(1);
-  const [qrImageUrl, setQrImageUrl] = useState('/payment-qr-1.png');
+  const [qrImageUrl, setQrImageUrl]     = useState('/payment-qr-1.png');
+  const [payNowEnabled, setPayNowEnabled] = useState(true); // controlled via admin panel
 
   useEffect(() => {
     const apiBase = import.meta.env.VITE_API_URL || '/api';
@@ -37,6 +38,10 @@ export default function CheckoutPage() {
         if (data && data.slot) {
           setActiveQrSlot(data.slot);
           setQrImageUrl(data.imageUrl || `/payment-qr-${data.slot}.png`);
+        }
+        // respect the pay_now toggle from admin
+        if (data && typeof data.payNowEnabled === 'boolean') {
+          setPayNowEnabled(data.payNowEnabled);
         }
       })
       .catch(() => {}); // silently fall back to default
@@ -240,22 +245,24 @@ export default function CheckoutPage() {
                 <span className="checkout-payment__amount">₹{cartTotal}</span>
               </div>
 
-              {/* Quick Pay Button */}
-              <div className="checkout-payment__quick-actions">
-                <button
-                  type="button"
-                  className="btn-primary checkout-payment__upi-app-btn"
-                  id="pay-with-upi-app-btn"
-                  onClick={() => setShowPaymentModal(true)}
-                >
-                  ⚡ Pay Now — ₹{cartTotal}
-                </button>
-                <p className="checkout-payment__upi-hint">
-                  {isMobile
-                    ? 'Tap above to choose your UPI app.'
-                    : 'Click above to see payment options, or scan the QR code below.'}
-                </p>
-              </div>
+              {/* Quick Pay Button — hidden when admin toggles it off */}
+              {payNowEnabled && (
+                <div className="checkout-payment__quick-actions">
+                  <button
+                    type="button"
+                    className="btn-primary checkout-payment__upi-app-btn"
+                    id="pay-with-upi-app-btn"
+                    onClick={() => setShowPaymentModal(true)}
+                  >
+                    ⚡ Pay Now — ₹{cartTotal}
+                  </button>
+                  <p className="checkout-payment__upi-hint">
+                    {isMobile
+                      ? 'Tap above to choose your UPI app.'
+                      : 'Click above to see payment options, or scan the QR code below.'}
+                  </p>
+                </div>
+              )}
 
               {/* ===== Payment Selector Modal ===== */}
               {showPaymentModal && (

@@ -122,6 +122,9 @@ async function initDb() {
     INSERT INTO app_settings (key, value)
     VALUES ('character_gallery', '["/canopus-portrait.png"]')
     ON CONFLICT (key) DO NOTHING;
+    INSERT INTO app_settings (key, value)
+    VALUES ('pay_now_enabled', 'true')
+    ON CONFLICT (key) DO NOTHING;
   `);
 
   // 4. Support Queries table (Customer inquiries & issues)

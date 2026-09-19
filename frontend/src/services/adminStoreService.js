@@ -210,3 +210,78 @@ export async function switchQrSlot(slot) {
   });
   return handleResponse(res);
 }
+
+/**
+ * Upload a new QR image for the given slot (1–3) — admin only
+ */
+export function uploadQrImage(slot, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('qrImage', file);
+
+    xhr.open('POST', `${API_BASE}/orders/payment-qr/upload/${slot}`);
+    const headers = authHeaders();
+    if (headers.Authorization) {
+      xhr.setRequestHeader('Authorization', headers.Authorization);
+    }
+
+    if (xhr.upload && typeof onProgress === 'function') {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      let json = {};
+      try { json = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(json);
+      } else {
+        reject(new Error(json.error || `Upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during QR upload.'));
+    xhr.ontimeout = () => reject(new Error('QR upload timed out.'));
+
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Delete / reset QR image for a given slot — admin only
+ */
+export async function deleteQrImage(slot) {
+  const res = await fetch(`${API_BASE}/orders/payment-qr/slot/${slot}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
+}
+
+/**
+ * Get QR + pay_now_enabled settings
+ */
+export async function getQrSettings() {
+  const res = await fetch(`${API_BASE}/orders/payment-qr/settings`);
+  return handleResponse(res);
+}
+
+/**
+ * Toggle Pay Now button visibility — admin only
+ */
+export async function updatePayNowSetting(payNowEnabled) {
+  const res = await fetch(`${API_BASE}/orders/payment-qr/settings`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ payNowEnabled }),
+  });
+  return handleResponse(res);
+}
