@@ -10,9 +10,9 @@ import { IconCheck } from '../components/shared/Icons';
 
 export default function OrderConfirmationPage() {
   const { orderId } = useParams();
-  const location    = useLocation();
+  const location = useLocation();
 
-  const [order, setOrder]     = useState(location.state?.order || null);
+  const [order, setOrder] = useState(location.state?.order || null);
   const [loading, setLoading] = useState(!order);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -65,9 +65,9 @@ export default function OrderConfirmationPage() {
     );
   }
 
-  const isPaid     = order.payment_status === 'PAID';
+  const isPaid = order.payment_status === 'PAID';
   const isRejected = order.payment_status === 'REJECTED';
-  const isPending  = !isPaid && !isRejected;
+  const isPending = !isPaid && !isRejected;
 
   return (
     <main className="confirmation-page page">
@@ -183,7 +183,7 @@ export default function OrderConfirmationPage() {
             </p>
           ) : isRejected ? (
             <p>
-              If your payment was debited from your account, please reach out to our team at <strong>orders@canopus.local</strong> with your transaction receipt.
+              If your payment was debited from your account, please reach out to our team at <strong>mr.canopus111@gmail.com</strong> with your transaction receipt.
             </p>
           ) : (
             <p>
