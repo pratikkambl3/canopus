@@ -291,12 +291,12 @@ export default function CheckoutPage() {
                         </a>
                       </div>
                     ) : (
-                      /* Desktop: Show PhonePe QR */
+                      /* Desktop: Show active QR */
                       <div className="upi-modal__qr-wrap">
                         <p className="upi-modal__qr-hint">Scan with any UPI app on your phone</p>
                         <img
-                          src="/payment-qr-phonepe.png"
-                          alt="PhonePe QR — Canopusrecords"
+                          src={qrImageUrl}
+                          alt="Payment QR — Canopusrecords"
                           className="upi-modal__qr-img"
                         />
                         <p className="upi-modal__upi-id">UPI: <strong>{upiId}</strong></p>
@@ -329,12 +329,12 @@ export default function CheckoutPage() {
                   </a>
                 </div>
 
-                {/* QR Code Container */}
+                {/* QR Code Container — dynamically loaded from admin panel */}
                 <div className="checkout-payment__qr-wrap">
                   <div className="upi-qr-display">
                     <img
-                      src="/payment-qr-phonepe.png"
-                      alt="PhonePe QR Code — Canopusrecords"
+                      src={qrImageUrl}
+                      alt="Payment QR Code — Canopusrecords"
                       className="upi-qr-image"
                     />
                     <span className="upi-qr-label">SCAN TO PAY WITH ANY UPI APP</span>
