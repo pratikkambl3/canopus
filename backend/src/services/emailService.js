@@ -7,14 +7,14 @@
 
 const nodemailer = require('nodemailer');
 
-const SMTP_HOST       = process.env.SMTP_HOST       || '';
-const SMTP_PORT       = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_SECURE     = process.env.SMTP_SECURE === 'true';
-const SMTP_USER       = process.env.SMTP_USER       || '';
-const SMTP_PASSWORD   = process.env.SMTP_PASSWORD   || '';
-const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || 'orders@canopus.local';
-const SMTP_FROM_NAME  = process.env.SMTP_FROM_NAME  || 'CANOPUS Records';
-const APP_URL         = process.env.APP_URL         || 'http://localhost:3000';
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD || '';
+const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || 'mr.canopus111@gmail.com';
+const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'CANOPUS Records';
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 
 let transporter = null;
 
@@ -22,10 +22,10 @@ function getTransporter() {
   if (!SMTP_HOST) return null;
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      host:   SMTP_HOST,
-      port:   SMTP_PORT,
+      host: SMTP_HOST,
+      port: SMTP_PORT,
       secure: SMTP_SECURE,
-      auth:   SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASSWORD } : undefined,
+      auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASSWORD } : undefined,
     });
   }
   return transporter;
@@ -137,7 +137,7 @@ async function sendPaymentApprovedEmail(order, itemsWithTokens = [], reqBaseUrl 
 
   const downloadBlocksText = itemsWithTokens.map(i => {
     const landingUrl = `${base}/download/${i.token}`;
-    const directUrl  = `${base}/api/download/${i.token}`;
+    const directUrl = `${base}/api/download/${i.token}`;
     return `Album: ${i.album_title_snapshot}\nDownload Page: ${landingUrl}\nDirect File Download: ${directUrl}\n(Valid for 7 days · Up to 10 downloads)\n`;
   }).join('\n');
 
@@ -164,7 +164,7 @@ Timeless Music. Never Gets Old.
 
   const downloadCardsHtml = itemsWithTokens.map(i => {
     const landingUrl = `${base}/download/${i.token}`;
-    const directUrl  = `${base}/api/download/${i.token}`;
+    const directUrl = `${base}/api/download/${i.token}`;
     return `
       <div style="background: #F7F4F0; border: 1px solid #E8E2DA; padding: 24px; margin-bottom: 20px; border-radius: 4px;">
         <h3 style="margin: 0 0 6px; font-family: 'Playfair Display', Georgia, serif; font-size: 18px; color: #1A1A1A;">${i.album_title_snapshot}</h3>
