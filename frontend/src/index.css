@@ -830,23 +830,27 @@ img {
   right: 0;
   height: var(--global-player-h);
   z-index: 200;
-  background: rgba(247, 244, 240, 0.97);
+  background: rgba(247, 244, 240, 0.98);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-top: 1px solid var(--border-mid);
-  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.08);
   animation: slide-up 320ms var(--ease-out);
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
-/* Top hairline progress indicator */
+/* Top hairline progress indicator (interactive scrubber) */
 .global-player__top-bar {
-  position: relative;
-  width: 100%;
-  height: 2px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
   background: var(--ivory-dark);
-  flex-shrink: 0;
+  cursor: pointer;
+  z-index: 10;
 }
 
 .global-player__top-progress {
@@ -855,21 +859,28 @@ img {
   left: 0;
   height: 100%;
   background: var(--text-primary);
-  transition: width 120ms linear;
+  transition: width 100ms linear;
+  pointer-events: none;
 }
 
 /* Inner layout */
 .global-player__inner {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 280px 1fr 140px;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "track controls right"
+    "track seek     right";
   align-items: center;
-  height: calc(var(--global-player-h) - 2px);
-  padding: 0 28px;
-  gap: 0;
+  height: 100%;
+  padding: 8px 32px;
+  column-gap: 24px;
+  row-gap: 4px;
 }
 
 /* ── LEFT: track info ── */
 .global-player__track {
+  grid-area: track;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -946,20 +957,13 @@ img {
   margin-top: 2px;
 }
 
-/* ── CENTER: controls + seek ── */
-.global-player__center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 480px;
-  max-width: 100%;
-}
-
+/* ── Controls Row ── */
 .global-player__controls {
+  grid-area: controls;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 10px;
 }
 
 /* Generic icon button */
@@ -984,10 +988,15 @@ img {
   height: 18px;
 }
 
-/* Skip buttons slightly larger */
+/* Skip and Fast Forward buttons */
 .gp-skip-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+}
+
+.gp-ff-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Shuffle active */
@@ -1021,6 +1030,7 @@ img {
   transition: all var(--t-fast);
   cursor: pointer;
   flex-shrink: 0;
+  background: none;
 }
 
 .gp-play-btn:hover,
@@ -1036,10 +1046,13 @@ img {
 
 /* Seek bar row */
 .global-player__seek-row {
+  grid-area: seek;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 .gp-time {
@@ -1118,6 +1131,7 @@ img {
 
 /* ── RIGHT: volume ── */
 .global-player__right {
+  grid-area: right;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1543,7 +1557,7 @@ img {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--global-player-h, 88px);
+  height: var(--global-player-h, 90px);
   z-index: 520;
   background: rgba(247, 244, 240, 0.98);
   backdrop-filter: blur(20px) saturate(160%);
@@ -1559,21 +1573,31 @@ img {
 .int-player__overlay-inner {
   width: 100%;
   max-width: 1200px;
-  padding: 0 32px;
+  padding: 8px 32px;
   display: grid;
-  grid-template-columns: 280px 1fr 120px;
+  grid-template-columns: 280px 1fr 140px;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "track controls right"
+    "track seek     right";
   align-items: center;
-  gap: 24px;
+  column-gap: 24px;
+  row-gap: 4px;
+  height: 100%;
 }
 
-.int-player--overlay .int-player__center {
-  max-width: 540px;
-  width: 100%;
-  margin: 0 auto;
+.int-player--overlay .int-player__track    { grid-area: track; }
+.int-player--overlay .int-player__controls { grid-area: controls; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.int-player--overlay .int-player__seek-row { grid-area: seek; display: flex; align-items: center; gap: 10px; width: 100%; max-width: 500px; margin: 0 auto; }
+.int-player--overlay .int-player__right    { grid-area: right; display: flex; align-items: center; justify-content: flex-end; }
+
+.int-ff-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .album-overlay__sheet--has-player {
-  margin-bottom: calc(var(--global-player-h, 88px) + 32px) !important;
+  margin-bottom: calc(var(--global-player-h, 90px) + 32px) !important;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -1591,13 +1615,15 @@ img {
   padding: 16px 20px 18px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
   animation: slide-up 260ms var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .int-player--inline .int-player__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
@@ -1638,15 +1664,37 @@ img {
   border: 1px solid var(--border);
 }
 
-.int-player--inline .int-player__body {
-  display: grid;
-  grid-template-columns: 240px 1fr 100px;
+.int-player--inline .int-player__seek-row {
+  display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 10px;
+  width: 100%;
 }
 
-.int-player--inline .int-player__center {
-  width: 100%;
+.int-player--inline .int-player__main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.int-player--inline .int-player__track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.int-player--inline .int-player__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.int-player--inline .int-player__right {
+  display: flex;
+  align-items: center;
 }
 
 /* ── Active Tracklist Header Pills & Buttons ── */
@@ -1709,37 +1757,292 @@ img {
   height: 11px;
 }
 
-/* ── Responsive rules for Integrated Player ── */
-@media (max-width: 768px) {
-  .int-player__overlay-inner {
-    grid-template-columns: 1fr auto;
-    padding: 0 16px;
-    gap: 12px;
+/* ─────────────────────────────────────────────────────────
+   UNIFIED MOBILE & TABLET RESPONSIVE RULES (<= 640px)
+   ───────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root {
+    --global-player-h: 88px;
   }
-  .int-player--overlay .int-player__track {
+
+  /* ── 1. Global Bottom Player on Mobile ── */
+  .global-player {
+    height: var(--global-player-h);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .global-player__inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "seek seek"
+      "track controls";
+    padding: 6px 12px 6px;
+    row-gap: 5px;
+    column-gap: 8px;
+    align-items: center;
+    height: 100%;
+  }
+
+  .global-player__seek-row {
+    grid-area: seek;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .gp-time {
+    font-size: 10px;
+    min-width: 30px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .gp-seek {
+    height: 20px;
+  }
+
+  .gp-seek__fill {
+    height: 3px;
+  }
+
+  .gp-seek__thumb {
+    width: 10px;
+    height: 10px;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .global-player__track {
+    grid-area: track;
+    min-width: 0;
+    gap: 8px;
+    display: flex;
+    align-items: center;
+  }
+
+  .global-player__artwork-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .global-player__info {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .gp-track-title__text {
+    font-size: 12px;
+    line-height: 1.2;
+    max-width: 130px;
+  }
+
+  .global-player__meta {
+    font-size: 10px;
+    max-width: 130px;
+    margin-top: 1px;
+  }
+
+  .global-player__controls {
+    grid-area: controls;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .gp-shuffle-btn {
     display: none;
   }
+
+  .gp-icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+  }
+
+  .gp-icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .gp-ff-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .gp-play-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .gp-play-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .global-player__right {
+    display: none;
+  }
+
+  /* ── 2. Integrated Overlay Player on Mobile ── */
+  .int-player--overlay {
+    height: var(--global-player-h);
+  }
+
+  .int-player__overlay-inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "seek seek"
+      "track controls";
+    padding: 6px 12px 6px;
+    row-gap: 5px;
+    column-gap: 8px;
+    align-items: center;
+    height: 100%;
+  }
+
+  .int-player--overlay .int-player__seek-row {
+    grid-area: seek;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .int-player--overlay .int-time-text {
+    font-size: 10px;
+    width: 30px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .int-player--overlay .int-player__track {
+    grid-area: track;
+    min-width: 0;
+    gap: 8px;
+    display: flex;
+    align-items: center;
+  }
+
+  .int-player--overlay .int-player__art-wrap {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .int-player--overlay .int-player__title {
+    font-size: 12px;
+    max-width: 130px;
+  }
+
+  .int-player--overlay .int-player__meta {
+    font-size: 10px;
+    max-width: 130px;
+  }
+
+  .int-player--overlay .int-player__status {
+    font-size: 8px;
+  }
+
+  .int-player--overlay .int-player__controls {
+    grid-area: controls;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .int-player--overlay .int-shuffle-btn {
+    display: none;
+  }
+
+  .int-player--overlay .int-icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .int-player--overlay .int-icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .int-player--overlay .int-ff-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .int-player--overlay .int-play-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .int-player--overlay .int-play-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .int-player--overlay .int-player__right {
     display: none;
   }
-  .int-player--inline .int-player__body {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  .int-player--inline .int-player__right {
-    display: none;
-  }
-}
 
-@media (max-width: 480px) {
-  .int-player--overlay {
-    height: 68px;
-  }
-  .int-player--overlay .int-player__seek-row {
-    display: none;
-  }
+  /* ── 3. Integrated Inline Player on Mobile ── */
   .int-player--inline {
     padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .int-player--inline .int-player__main-row {
+    gap: 8px;
+  }
+
+  .int-player--inline .int-player__track {
+    max-width: 48%;
+    gap: 8px;
+  }
+
+  .int-player--inline .int-player__art-wrap {
+    width: 36px;
+    height: 36px;
+  }
+
+  .int-player--inline .int-player__title {
+    font-size: 12px;
+  }
+
+  .int-player--inline .int-player__meta {
+    font-size: 10px;
+  }
+
+  .int-player--inline .int-player__controls {
+    gap: 4px;
+  }
+
+  .int-player--inline .int-shuffle-btn {
+    display: none;
+  }
+
+  .int-player--inline .int-icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .int-player--inline .int-play-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .int-player--inline .int-player__right {
+    display: none;
   }
 }
 
@@ -3445,24 +3748,6 @@ img {
   .mini-player__times {
     display: none;
   }
-  /* Global player responsive — tablet */
-  .global-player__inner {
-    grid-template-columns: 1fr auto 120px;
-    padding: 0 16px;
-    gap: 0;
-  }
-  .global-player__center {
-    width: 320px;
-  }
-  .gp-shuffle-btn {
-    display: none;
-  }
-  .gp-vol__slider-wrap--open {
-    width: 70px;
-  }
-  .gp-vol__slider {
-    width: 70px;
-  }
   .header__wordmark {
     font-size: 15px;
     letter-spacing: 0.14em;
@@ -3491,27 +3776,6 @@ img {
   .btn-primary, .btn-secondary {
     width: 100%;
     justify-content: center;
-  }
-  /* Global player — mobile: compact, no seek or volume */
-  :root {
-    --global-player-h: 68px;
-  }
-  .global-player__inner {
-    grid-template-columns: 1fr auto;
-    padding: 0 14px;
-  }
-  .global-player__center {
-    width: auto;
-    gap: 0;
-  }
-  .global-player__seek-row {
-    display: none;
-  }
-  .global-player__right {
-    display: none;
-  }
-  .gp-skip-btn {
-    display: none;
   }
 }
 

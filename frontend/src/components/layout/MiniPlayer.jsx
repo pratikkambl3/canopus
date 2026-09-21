@@ -2,11 +2,12 @@ import { useState, useRef, useCallback } from 'react';
 import { useAudio } from '../../context/AudioContext';
 import {
   IconPlay, IconPause, IconPrev, IconNext,
+  IconFastForward, IconRewind,
   IconShuffle, IconVolume, IconVolumeMute,
   formatTime,
 } from '../shared/Icons';
 
-/* ── Seek-bar with drag support ── */
+/* ── Seek-bar with full mouse & touch drag support ── */
 function SeekBar({ currentTime, duration, onSeek }) {
   const barRef = useRef(null);
   const dragging = useRef(false);
@@ -15,8 +16,9 @@ function SeekBar({ currentTime, duration, onSeek }) {
 
   const posFromEvent = useCallback((e) => {
     const rect = barRef.current?.getBoundingClientRect();
-    if (!rect) return 0;
-    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (!rect || rect.width === 0) return 0;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   }, []);
 
   const handleMouseDown = (e) => {
@@ -39,14 +41,26 @@ function SeekBar({ currentTime, duration, onSeek }) {
     document.addEventListener('mouseup', onUp);
   };
 
-  /* Touch support */
   const handleTouchStart = (e) => {
     if (!duration) return;
-    const touch = e.touches[0];
-    const rect = barRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-    onSeek(ratio * duration);
+    dragging.current = true;
+    onSeek(posFromEvent(e) * duration);
+
+    const onTouchMove = (ev) => {
+      if (dragging.current) onSeek(posFromEvent(ev) * duration);
+    };
+    const onTouchEnd = (ev) => {
+      if (dragging.current) {
+        if (ev.changedTouches && ev.changedTouches[0]) {
+          onSeek(posFromEvent(ev.changedTouches[0]) * duration);
+        }
+        dragging.current = false;
+      }
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd);
   };
 
   return (
@@ -60,6 +74,12 @@ function SeekBar({ currentTime, duration, onSeek }) {
       aria-valuemin={0}
       aria-valuemax={Math.floor(duration) || 0}
       aria-valuenow={Math.floor(currentTime) || 0}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (!duration) return;
+        if (e.key === 'ArrowRight') onSeek(Math.min(duration, currentTime + 5));
+        if (e.key === 'ArrowLeft') onSeek(Math.max(0, currentTime - 5));
+      }}
     >
       <div className="gp-seek__fill" style={{ width: `${pct}%` }} />
       <div className="gp-seek__thumb" style={{ left: `${pct}%` }} />
@@ -79,6 +99,7 @@ function VolumeControl({ volume, isMuted, onVolumeChange, onToggleMute }) {
       onMouseLeave={() => setHovered(false)}
     >
       <button
+        type="button"
         className="gp-icon-btn"
         onClick={onToggleMute}
         aria-label={isMuted ? 'Unmute' : 'Mute'}
@@ -116,6 +137,7 @@ function TrackTitle({ title }) {
 /* ══════════════════════════════════════════════════════════════════
    GLOBAL PLAYER — main component
    Appears at the bottom of the screen whenever a track is loaded.
+   Supports touch-friendly mobile layout with scrub bar & fast forward.
    ══════════════════════════════════════════════════════════════════ */
 export default function MiniPlayer() {
   const { state, actions } = useAudio();
@@ -124,15 +146,49 @@ export default function MiniPlayer() {
     volume, isMuted, shuffleEnabled,
   } = state;
 
+  const topBarRef = useRef(null);
+
   /* Don't render if nothing is loaded */
   if (!currentTrack) return null;
 
   const artworkSrc = currentTrack.artworkUrl || currentTrack.artwork || null;
 
+  /* Quick Seek Actions */
+  const handleFastForward = (e) => {
+    e?.stopPropagation();
+    if (duration > 0) {
+      actions.seek(Math.min(duration, currentTime + 10));
+    }
+  };
+
+  const handleRewind = (e) => {
+    e?.stopPropagation();
+    actions.seek(Math.max(0, currentTime - 10));
+  };
+
+  /* Interactive Top Bar scrub */
+  const handleTopClick = (e) => {
+    if (!duration || !topBarRef.current) return;
+    const rect = topBarRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    actions.seek(ratio * duration);
+  };
+
   return (
     <div className="global-player" role="region" aria-label="Now Playing">
-      {/* Top hairline seek bar — always visible at very top */}
-      <div className="global-player__top-bar">
+      {/* Top interactive hairline seek bar */}
+      <div
+        ref={topBarRef}
+        className="global-player__top-bar"
+        onClick={handleTopClick}
+        onTouchStart={handleTopClick}
+        role="slider"
+        aria-label="Fast seek track"
+        aria-valuemin={0}
+        aria-valuemax={Math.floor(duration) || 0}
+        aria-valuenow={Math.floor(currentTime) || 0}
+      >
         <div
           className="global-player__top-progress"
           style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
@@ -141,7 +197,7 @@ export default function MiniPlayer() {
       </div>
 
       <div className="global-player__inner">
-        {/* LEFT — Artwork + Track info */}
+        {/* LEFT / ROW 2 LEFT — Artwork + Track info */}
         <div className="global-player__track">
           <div className="global-player__artwork-wrap">
             {artworkSrc ? (
@@ -161,61 +217,86 @@ export default function MiniPlayer() {
           <div className="global-player__info">
             <TrackTitle title={currentTrack.title} />
             <p className="global-player__meta">
-              {[currentTrack.version || currentTrack.originalTitle, currentTrack.bpm ? `${currentTrack.bpm} BPM` : null]
+              {[currentTrack.artist || 'CANOPUS', currentTrack.version || currentTrack.originalTitle, currentTrack.bpm ? `${currentTrack.bpm} BPM` : null]
                 .filter(Boolean)
-                .join(' · ') || (currentTrack.category || currentTrack.genre || '')}
+                .join(' · ')}
             </p>
           </div>
         </div>
 
-        {/* CENTER — Seek bar + Controls */}
-        <div className="global-player__center">
-          {/* Controls row */}
-          <div className="global-player__controls">
-            <button
-              className={`gp-icon-btn gp-shuffle-btn${shuffleEnabled ? ' gp-shuffle-btn--active' : ''}`}
-              onClick={actions.toggleShuffle}
-              aria-label={shuffleEnabled ? 'Disable shuffle' : 'Enable shuffle'}
-              aria-pressed={shuffleEnabled}
-            >
-              <IconShuffle />
-            </button>
+        {/* CENTER ROW 1 / MOBILE ROW 2 RIGHT — Controls */}
+        <div className="global-player__controls">
+          <button
+            type="button"
+            className={`gp-icon-btn gp-shuffle-btn${shuffleEnabled ? ' gp-shuffle-btn--active' : ''}`}
+            onClick={actions.toggleShuffle}
+            aria-label={shuffleEnabled ? 'Disable shuffle' : 'Enable shuffle'}
+            aria-pressed={shuffleEnabled}
+            title="Shuffle"
+          >
+            <IconShuffle />
+          </button>
 
-            <button
-              className="gp-icon-btn gp-skip-btn"
-              onClick={actions.prev}
-              aria-label="Previous track"
-            >
-              <IconPrev />
-            </button>
+          <button
+            type="button"
+            className="gp-icon-btn gp-skip-btn"
+            onClick={actions.prev}
+            aria-label="Previous track"
+            title="Previous track"
+          >
+            <IconPrev />
+          </button>
 
-            <button
-              className={`gp-play-btn${isPlaying ? ' gp-play-btn--active' : ''}`}
-              onClick={actions.togglePlay}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <IconPause /> : <IconPlay />}
-            </button>
+          <button
+            type="button"
+            className="gp-icon-btn gp-ff-btn"
+            onClick={handleRewind}
+            aria-label="Rewind 10 seconds"
+            title="Rewind 10s"
+          >
+            <IconRewind />
+          </button>
 
-            <button
-              className="gp-icon-btn gp-skip-btn"
-              onClick={actions.next}
-              aria-label="Next track"
-            >
-              <IconNext />
-            </button>
-          </div>
+          <button
+            type="button"
+            className={`gp-play-btn${isPlaying ? ' gp-play-btn--active' : ''}`}
+            onClick={actions.togglePlay}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <IconPause /> : <IconPlay />}
+          </button>
 
-          {/* Seek row */}
-          <div className="global-player__seek-row">
-            <span className="gp-time">{formatTime(currentTime)}</span>
-            <SeekBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={actions.seek}
-            />
-            <span className="gp-time">{formatTime(duration)}</span>
-          </div>
+          <button
+            type="button"
+            className="gp-icon-btn gp-ff-btn"
+            onClick={handleFastForward}
+            aria-label="Fast forward 10 seconds"
+            title="Fast forward 10s"
+          >
+            <IconFastForward />
+          </button>
+
+          <button
+            type="button"
+            className="gp-icon-btn gp-skip-btn"
+            onClick={actions.next}
+            aria-label="Next track"
+            title="Next track"
+          >
+            <IconNext />
+          </button>
+        </div>
+
+        {/* CENTER ROW 2 / MOBILE ROW 1 — Interactive seek bar with live time */}
+        <div className="global-player__seek-row">
+          <span className="gp-time">{formatTime(currentTime)}</span>
+          <SeekBar
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={actions.seek}
+          />
+          <span className="gp-time">{formatTime(duration)}</span>
         </div>
 
         {/* RIGHT — Volume */}

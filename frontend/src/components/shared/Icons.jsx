@@ -26,6 +26,20 @@ export const IconNext = () => (
   </svg>
 );
 
+export const IconFastForward = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <polygon points="13,19 22,12 13,5" />
+    <polygon points="2,19 11,12 2,5" />
+  </svg>
+);
+
+export const IconRewind = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <polygon points="11,19 2,12 11,5" />
+    <polygon points="22,19 13,12 22,5" />
+  </svg>
+);
+
 export const IconShuffle = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

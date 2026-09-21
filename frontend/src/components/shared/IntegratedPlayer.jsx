@@ -3,13 +3,14 @@
    High-fidelity audio controller designed for embedding inside
    RecordDetailsOverlay ('overlay') and ProductDetailsPage ('inline').
    Provides seamless seeking, track navigation, fast-forwarding,
-   and visual feedback without having to close overlays or pages.
+   and visual feedback across all devices including mobile phones.
    ================================================================ */
 
 import { useState, useRef, useCallback, memo } from 'react';
 import { useAudio } from '../../context/AudioContext';
 import {
   IconPlay, IconPause, IconPrev, IconNext,
+  IconFastForward, IconRewind,
   IconShuffle, IconVolume, IconVolumeMute,
   formatTime,
 } from './Icons';
@@ -147,7 +148,7 @@ function EqualizerBars({ isPlaying }) {
    IntegratedPlayer Component
    Props:
    - variant: 'overlay' (fixed inside record modal) or 'inline' (editorial product card)
-   - title: optional custom subtitle or section title
+   - subtitle: optional custom subtitle or section title
    ══════════════════════════════════════════════════════════════════ */
 function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
   const { state, actions } = useAudio();
@@ -155,6 +156,8 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
     currentTrack, isPlaying, currentTime, duration,
     volume, isMuted, shuffleEnabled,
   } = state;
+
+  const topBarRef = useRef(null);
 
   if (!currentTrack) return null;
 
@@ -168,6 +171,28 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
     currentTrack.key,
   ].filter(Boolean);
 
+  /* Quick seek actions */
+  const handleFastForward = (e) => {
+    e?.stopPropagation();
+    if (duration > 0) {
+      actions.seek(Math.min(duration, currentTime + 10));
+    }
+  };
+
+  const handleRewind = (e) => {
+    e?.stopPropagation();
+    actions.seek(Math.max(0, currentTime - 10));
+  };
+
+  /* Interactive Top Bar scrub */
+  const handleTopClick = (e) => {
+    if (!duration || !topBarRef.current) return;
+    const rect = topBarRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    actions.seek(ratio * duration);
+  };
+
   /* ─────────────────────────────────────────────────────────
      VARIANT A: 'inline' (embedded inside ProductDetailsPage)
      ───────────────────────────────────────────────────────── */
@@ -178,8 +203,18 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
         role="region"
         aria-label="Integrated Player Console"
       >
-        {/* Top Hairline Track Progress */}
-        <div className="int-player__hairline" aria-hidden="true">
+        {/* Top Hairline Track Progress (interactive) */}
+        <div
+          ref={topBarRef}
+          className="int-player__hairline"
+          onClick={handleTopClick}
+          onTouchStart={handleTopClick}
+          role="slider"
+          aria-label="Seek track"
+          aria-valuemin={0}
+          aria-valuemax={Math.floor(duration) || 0}
+          aria-valuenow={Math.floor(currentTime) || 0}
+        >
           <div className="int-player__hairline-fill" style={{ width: `${pct}%` }} />
         </div>
 
@@ -201,8 +236,19 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
           </div>
         </div>
 
-        {/* Card Body */}
-        <div className="int-player__body">
+        {/* Seek Bar Row */}
+        <div className="int-player__seek-row">
+          <span className="int-time-text">{formatTime(currentTime)}</span>
+          <SeekBar
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={actions.seek}
+          />
+          <span className="int-time-text">{formatTime(duration)}</span>
+        </div>
+
+        {/* Card Main Row: Track Details + Controls + Volume */}
+        <div className="int-player__main-row">
           {/* Left: Artwork + Track details */}
           <div className="int-player__track">
             <div className="int-player__art-wrap">
@@ -227,61 +273,68 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
             </div>
           </div>
 
-          {/* Center: Controls + Full Seek Bar */}
-          <div className="int-player__center">
-            <div className="int-player__controls">
-              <button
-                type="button"
-                className={`int-icon-btn int-shuffle-btn${shuffleEnabled ? ' int-shuffle-btn--active' : ''}`}
-                onClick={actions.toggleShuffle}
-                aria-label={shuffleEnabled ? 'Disable shuffle' : 'Enable shuffle'}
-                aria-pressed={shuffleEnabled}
-                title="Shuffle"
-              >
-                <IconShuffle />
-              </button>
+          {/* Controls: Prev, Rewind 10s, Play/Pause, Fast-Forward 10s, Next, Shuffle */}
+          <div className="int-player__controls">
+            <button
+              type="button"
+              className={`int-icon-btn int-shuffle-btn${shuffleEnabled ? ' int-shuffle-btn--active' : ''}`}
+              onClick={actions.toggleShuffle}
+              aria-label={shuffleEnabled ? 'Disable shuffle' : 'Enable shuffle'}
+              aria-pressed={shuffleEnabled}
+              title="Shuffle"
+            >
+              <IconShuffle />
+            </button>
 
-              <button
-                type="button"
-                className="int-icon-btn int-skip-btn"
-                onClick={actions.prev}
-                aria-label="Previous track"
-                title="Previous track"
-              >
-                <IconPrev />
-              </button>
+            <button
+              type="button"
+              className="int-icon-btn int-skip-btn"
+              onClick={actions.prev}
+              aria-label="Previous track"
+              title="Previous track"
+            >
+              <IconPrev />
+            </button>
 
-              <button
-                type="button"
-                className={`int-play-btn${isPlaying ? ' int-play-btn--active' : ''}`}
-                onClick={actions.togglePlay}
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? <IconPause /> : <IconPlay />}
-              </button>
+            <button
+              type="button"
+              className="int-icon-btn int-ff-btn"
+              onClick={handleRewind}
+              aria-label="Rewind 10 seconds"
+              title="Rewind 10s"
+            >
+              <IconRewind />
+            </button>
 
-              <button
-                type="button"
-                className="int-icon-btn int-skip-btn"
-                onClick={actions.next}
-                aria-label="Next track"
-                title="Next track"
-              >
-                <IconNext />
-              </button>
-            </div>
+            <button
+              type="button"
+              className={`int-play-btn${isPlaying ? ' int-play-btn--active' : ''}`}
+              onClick={actions.togglePlay}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <IconPause /> : <IconPlay />}
+            </button>
 
-            {/* Scrub / Seek row with interactive bar */}
-            <div className="int-player__seek-row">
-              <span className="int-time-text">{formatTime(currentTime)}</span>
-              <SeekBar
-                currentTime={currentTime}
-                duration={duration}
-                onSeek={actions.seek}
-              />
-              <span className="int-time-text">{formatTime(duration)}</span>
-            </div>
+            <button
+              type="button"
+              className="int-icon-btn int-ff-btn"
+              onClick={handleFastForward}
+              aria-label="Fast forward 10 seconds"
+              title="Fast forward 10s"
+            >
+              <IconFastForward />
+            </button>
+
+            <button
+              type="button"
+              className="int-icon-btn int-skip-btn"
+              onClick={actions.next}
+              aria-label="Next track"
+              title="Next track"
+            >
+              <IconNext />
+            </button>
           </div>
 
           {/* Right: Volume */}
@@ -307,13 +360,23 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
       role="region"
       aria-label="Record Player Console"
     >
-      {/* Top Hairline Progress */}
-      <div className="int-player__hairline" aria-hidden="true">
+      {/* Top Hairline Progress (interactive) */}
+      <div
+        ref={topBarRef}
+        className="int-player__hairline"
+        onClick={handleTopClick}
+        onTouchStart={handleTopClick}
+        role="slider"
+        aria-label="Seek track"
+        aria-valuemin={0}
+        aria-valuemax={Math.floor(duration) || 0}
+        aria-valuenow={Math.floor(currentTime) || 0}
+      >
         <div className="int-player__hairline-fill" style={{ width: `${pct}%` }} />
       </div>
 
       <div className="int-player__overlay-inner">
-        {/* Left: Artwork + Track details */}
+        {/* Left / Row 2 Left: Artwork + Track details */}
         <div className="int-player__track">
           <div className="int-player__art-wrap">
             {artworkSrc ? (
@@ -333,7 +396,7 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
             <div className="int-player__eyebrow-row">
               <EqualizerBars isPlaying={isPlaying} />
               <span className="int-player__status">
-                {isPlaying ? 'PLAYING RECORD' : 'RECORD PAUSED'}
+                {isPlaying ? 'RECORD PLAYING' : 'RECORD PAUSED'}
               </span>
             </div>
             <p className="int-player__title">{currentTrack.title}</p>
@@ -343,60 +406,79 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
           </div>
         </div>
 
-        {/* Center: Controls + Seek Bar */}
-        <div className="int-player__center">
-          <div className="int-player__controls">
-            <button
-              type="button"
-              className={`int-icon-btn int-shuffle-btn${shuffleEnabled ? ' int-shuffle-btn--active' : ''}`}
-              onClick={actions.toggleShuffle}
-              aria-label={shuffleEnabled ? 'Disable shuffle' : 'Enable shuffle'}
-              aria-pressed={shuffleEnabled}
-              title="Shuffle"
-            >
-              <IconShuffle />
-            </button>
+        {/* Center Row 1 / Row 2 Right: Controls */}
+        <div className="int-player__controls">
+          <button
+            type="button"
+            className={`int-icon-btn int-shuffle-btn${shuffleEnabled ? ' int-shuffle-btn--active' : ''}`}
+            onClick={actions.toggleShuffle}
+            aria-label={shuffleEnabled ? 'Disable shuffle' : 'Enable shuffle'}
+            aria-pressed={shuffleEnabled}
+            title="Shuffle"
+          >
+            <IconShuffle />
+          </button>
 
-            <button
-              type="button"
-              className="int-icon-btn int-skip-btn"
-              onClick={actions.prev}
-              aria-label="Previous track"
-              title="Previous track"
-            >
-              <IconPrev />
-            </button>
+          <button
+            type="button"
+            className="int-icon-btn int-skip-btn"
+            onClick={actions.prev}
+            aria-label="Previous track"
+            title="Previous track"
+          >
+            <IconPrev />
+          </button>
 
-            <button
-              type="button"
-              className={`int-play-btn${isPlaying ? ' int-play-btn--active' : ''}`}
-              onClick={actions.togglePlay}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <IconPause /> : <IconPlay />}
-            </button>
+          <button
+            type="button"
+            className="int-icon-btn int-ff-btn"
+            onClick={handleRewind}
+            aria-label="Rewind 10 seconds"
+            title="Rewind 10s"
+          >
+            <IconRewind />
+          </button>
 
-            <button
-              type="button"
-              className="int-icon-btn int-skip-btn"
-              onClick={actions.next}
-              aria-label="Next track"
-              title="Next track"
-            >
-              <IconNext />
-            </button>
-          </div>
+          <button
+            type="button"
+            className={`int-play-btn${isPlaying ? ' int-play-btn--active' : ''}`}
+            onClick={actions.togglePlay}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <IconPause /> : <IconPlay />}
+          </button>
 
-          <div className="int-player__seek-row">
-            <span className="int-time-text">{formatTime(currentTime)}</span>
-            <SeekBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={actions.seek}
-            />
-            <span className="int-time-text">{formatTime(duration)}</span>
-          </div>
+          <button
+            type="button"
+            className="int-icon-btn int-ff-btn"
+            onClick={handleFastForward}
+            aria-label="Fast forward 10 seconds"
+            title="Fast forward 10s"
+          >
+            <IconFastForward />
+          </button>
+
+          <button
+            type="button"
+            className="int-icon-btn int-skip-btn"
+            onClick={actions.next}
+            aria-label="Next track"
+            title="Next track"
+          >
+            <IconNext />
+          </button>
+        </div>
+
+        {/* Center Row 2 / Row 1 Full Width: Seek Bar */}
+        <div className="int-player__seek-row">
+          <span className="int-time-text">{formatTime(currentTime)}</span>
+          <SeekBar
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={actions.seek}
+          />
+          <span className="int-time-text">{formatTime(duration)}</span>
         </div>
 
         {/* Right: Volume */}
