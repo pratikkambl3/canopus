@@ -9,13 +9,16 @@ import { getOrders, approveOrder, rejectOrder, resendOrderEmail } from '../../se
 import { IconCheck, IconCopy } from '../shared/Icons';
 
 export default function AdminOrdersTab() {
-  const [orders, setOrders]       = useState([]);
-  const [filter, setFilter]       = useState('ALL'); // ALL, PENDING, PAID, REJECTED
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [actionId, setActionId]   = useState(null); // id currently being approved/rejected
-  const [toast, setToast]         = useState(null);
-  const [copiedUtr, setCopiedUtr] = useState(null);
+  const [orders, setOrders]             = useState([]);
+  const [filter, setFilter]             = useState('ALL'); // ALL, PENDING, PAID, REJECTED
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
+  const [actionId, setActionId]         = useState(null); // id currently being approved/rejected
+  const [toast, setToast]               = useState(null);
+  const [copiedUtr, setCopiedUtr]       = useState(null);
+  const [confirmingOrder, setConfirmingOrder] = useState(null);
+  const [rejectingOrder, setRejectingOrder]   = useState(null);
+  const [rejectReason, setRejectReason]       = useState('Payment reference (UTR) could not be verified.');
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -39,32 +42,40 @@ export default function AdminOrdersTab() {
     loadOrders();
   }, [loadOrders]);
 
-  const handleApprove = async (order) => {
-    if (!window.confirm(`Approve payment of ₹${order.total_amount} for Order #${order.order_number}? This will generate download tokens and dispatch the album ZIP to ${order.customer_email}.`)) {
-      return;
-    }
-    setActionId(order.id);
+  const handleOpenApproveModal = (order) => {
+    setConfirmingOrder(order);
+  };
+
+  const executeApprove = async () => {
+    if (!confirmingOrder) return;
+    setActionId(confirmingOrder.id);
     try {
-      await approveOrder(order.id);
-      showToast(`Order #${order.order_number} approved and download links dispatched.`);
-      loadOrders();
+      const res = await approveOrder(confirmingOrder.id);
+      showToast(res.message || `Order #${confirmingOrder.order_number} approved and download links dispatched.`);
+      setConfirmingOrder(null);
+      await loadOrders();
     } catch (err) {
-      alert(`Approval error: ${err.message}`);
+      showToast(`Approval error: ${err.message}`, 'error');
     } finally {
       setActionId(null);
     }
   };
 
-  const handleReject = async (order) => {
-    const reason = window.prompt(`Enter rejection reason for Order #${order.order_number}:`, 'Payment reference (UTR) could not be verified.');
-    if (reason === null) return;
-    setActionId(order.id);
+  const handleOpenRejectModal = (order) => {
+    setRejectReason('Payment reference (UTR) could not be verified.');
+    setRejectingOrder(order);
+  };
+
+  const executeReject = async () => {
+    if (!rejectingOrder) return;
+    setActionId(rejectingOrder.id);
     try {
-      await rejectOrder(order.id, reason);
-      showToast(`Order #${order.order_number} marked as rejected.`, 'info');
-      loadOrders();
+      await rejectOrder(rejectingOrder.id, rejectReason);
+      showToast(`Order #${rejectingOrder.order_number} marked as rejected.`, 'info');
+      setRejectingOrder(null);
+      await loadOrders();
     } catch (err) {
-      alert(`Rejection error: ${err.message}`);
+      showToast(`Rejection error: ${err.message}`, 'error');
     } finally {
       setActionId(null);
     }
@@ -75,8 +86,9 @@ export default function AdminOrdersTab() {
     try {
       await resendOrderEmail(order.id);
       showToast(`Download link email resent to ${order.customer_email}.`);
+      await loadOrders();
     } catch (err) {
-      alert(`Resend error: ${err.message}`);
+      showToast(`Resend error: ${err.message}`, 'error');
     } finally {
       setActionId(null);
     }
@@ -198,7 +210,7 @@ export default function AdminOrdersTab() {
                         {order.items && order.items.length > 0 ? (
                           order.items.map((item, i) => (
                             <span key={i} className="order-item-badge">
-                              {item.title_snapshot}
+                              {item.title || item.title_snapshot || 'Album'}
                             </span>
                           ))
                         ) : (
@@ -242,14 +254,14 @@ export default function AdminOrdersTab() {
                           <>
                             <button
                               className="btn-primary btn-sm"
-                              onClick={() => handleApprove(order)}
+                              onClick={() => handleOpenApproveModal(order)}
                               disabled={isBusy}
                             >
                               {isBusy ? 'Processing…' : 'Approve & Send'}
                             </button>
                             <button
                               className="btn-danger btn-sm"
-                              onClick={() => handleReject(order)}
+                              onClick={() => handleOpenRejectModal(order)}
                               disabled={isBusy}
                             >
                               Reject
@@ -273,6 +285,136 @@ export default function AdminOrdersTab() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Approve Confirmation In-App Modal */}
+      {confirmingOrder && (
+        <div className="confirm-delete-overlay" role="dialog" aria-modal="true">
+          <div className="confirm-delete-modal admin-order-modal">
+            <div className="cdm-header">
+              <span className="cdm-eyebrow">CONFIRM PAYMENT APPROVAL</span>
+              <h2 className="cdm-title">Approve Order #{confirmingOrder.order_number}</h2>
+            </div>
+            <div className="admin-order-modal__body">
+              <div className="admin-order-modal__grid">
+                <div className="admin-order-modal__row">
+                  <span className="admin-order-modal__label">Customer:</span>
+                  <strong>{confirmingOrder.customer_name}</strong>
+                </div>
+                <div className="admin-order-modal__row">
+                  <span className="admin-order-modal__label">Email:</span>
+                  <span>{confirmingOrder.customer_email}</span>
+                </div>
+                {confirmingOrder.customer_phone && (
+                  <div className="admin-order-modal__row">
+                    <span className="admin-order-modal__label">Phone:</span>
+                    <span>{confirmingOrder.customer_phone}</span>
+                  </div>
+                )}
+                <div className="admin-order-modal__row">
+                  <span className="admin-order-modal__label">Amount:</span>
+                  <strong style={{ fontSize: 15, color: 'var(--text-primary)' }}>₹{confirmingOrder.total_amount}</strong>
+                </div>
+                {confirmingOrder.payment_reference && (
+                  <div className="admin-order-modal__row">
+                    <span className="admin-order-modal__label">UTR:</span>
+                    <code>{confirmingOrder.payment_reference}</code>
+                  </div>
+                )}
+                <div className="admin-order-modal__row">
+                  <span className="admin-order-modal__label">Albums:</span>
+                  <div className="order-items-summary">
+                    {confirmingOrder.items && confirmingOrder.items.length > 0 ? (
+                      confirmingOrder.items.map((it, idx) => (
+                        <span key={idx} className="order-item-badge">
+                          {it.title || it.title_snapshot || 'Album'}
+                        </span>
+                      ))
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="admin-order-modal__notice">
+                Approving this order verifies payment, generates 7-day secure download tokens, and dispatches download links to <strong>{confirmingOrder.customer_email}</strong>.
+              </p>
+            </div>
+            <div className="cdm-actions">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setConfirmingOrder(null)}
+                disabled={actionId === confirmingOrder.id}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={executeApprove}
+                disabled={actionId === confirmingOrder.id}
+              >
+                {actionId === confirmingOrder.id ? 'Approving & Dispatching…' : 'Approve & Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Confirmation In-App Modal */}
+      {rejectingOrder && (
+        <div className="confirm-delete-overlay" role="dialog" aria-modal="true">
+          <div className="confirm-delete-modal admin-order-modal">
+            <div className="cdm-header" style={{ background: '#7f1d1d' }}>
+              <span className="cdm-eyebrow">REJECT PAYMENT</span>
+              <h2 className="cdm-title">Reject Order #{rejectingOrder.order_number}</h2>
+            </div>
+            <div className="admin-order-modal__body">
+              <p className="admin-order-modal__notice" style={{ marginTop: 0 }}>
+                Mark order from <strong>{rejectingOrder.customer_name}</strong> (UTR: <code>{rejectingOrder.payment_reference || 'N/A'}</code>) as rejected. An email will notify the customer.
+              </p>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Rejection Reason:
+              </label>
+              <textarea
+                className="admin-input"
+                style={{
+                  width: '100%',
+                  minHeight: 70,
+                  padding: 10,
+                  fontSize: 13,
+                  resize: 'vertical',
+                  border: '1px solid var(--border-mid, #d6d2c8)',
+                  borderRadius: 3,
+                  background: '#fff',
+                  boxSizing: 'border-box',
+                }}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                disabled={actionId === rejectingOrder.id}
+              />
+            </div>
+            <div className="cdm-actions">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setRejectingOrder(null)}
+                disabled={actionId === rejectingOrder.id}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={executeReject}
+                disabled={actionId === rejectingOrder.id}
+              >
+                {actionId === rejectingOrder.id ? 'Rejecting…' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -668,13 +668,13 @@ router.get('/:id', async (req, res) => {
         `SELECT dt.token, dt.album_id, dt.download_count, dt.max_downloads, dt.expires_at,
                 r.title, r.digital_file_name, r.digital_file_size
          FROM download_tokens dt
-         JOIN records r ON r.id = dt.album_id
+         LEFT JOIN records r ON r.id = dt.album_id
          WHERE dt.order_id = $1`,
         [order.id]
       );
       downloads = tokens.map(t => ({
         albumId: t.album_id,
-        title: t.title || t.album_title_snapshot,
+        title: t.title || 'Digital Album',
         fileName: t.digital_file_name || `${t.title || 'album'}.zip`,
         fileSize: Number(t.digital_file_size || 0),
         downloadUrl: `/api/download/${t.token}`,
@@ -690,13 +690,14 @@ router.get('/:id', async (req, res) => {
       items: items.map(i => ({
         albumId: i.album_id,
         title:   i.album_title_snapshot,
+        title_snapshot: i.album_title_snapshot,
         price:   Number(i.album_price_snapshot),
       })),
       downloads,
     });
   } catch (err) {
     console.error('[orders] GET /:id error:', err);
-    res.status(500).json({ error: 'Failed to fetch order.' });
+    res.status(500).json({ error: 'Failed to fetch order details.' });
   }
 });
 
@@ -711,6 +712,7 @@ router.get('/', authenticate, async (req, res) => {
                  'id', oi.id,
                  'albumId', oi.album_id,
                  'title', oi.album_title_snapshot,
+                 'title_snapshot', oi.album_title_snapshot,
                  'price', oi.album_price_snapshot
                )
              ) FILTER (WHERE oi.id IS NOT NULL), '[]') as items
@@ -769,10 +771,15 @@ router.post('/:id/approve', authenticate, async (req, res) => {
     const { rows: items } = await client.query(
       `SELECT oi.*, r.digital_file_path, r.title as current_title
        FROM order_items oi
-       JOIN records r ON r.id = oi.album_id
+       LEFT JOIN records r ON r.id = oi.album_id
        WHERE oi.order_id = $1`,
       [order.id]
     );
+
+    if (!items.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Cannot approve order: no items found in this order.' });
+    }
 
     const itemsWithTokens = [];
 
@@ -801,10 +808,17 @@ router.post('/:id/approve', authenticate, async (req, res) => {
             [zipMeta.fileId, zipMeta.fileName, zipMeta.fileSize, zipMeta.fileHash, zipMeta.filePath, item.album_id]
           );
         } else {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            error: `Cannot deliver order: digital file is missing and no tracks exist for album "${item.album_title_snapshot}".`
-          });
+          // Fallback: check if existing zip exists in DIGITAL_PRODUCTS_PATH
+          const { DIGITAL_PRODUCTS_PATH } = require('../services/zipService');
+          const candidateZip = path.join(DIGITAL_PRODUCTS_PATH, item.album_id, 'album.zip');
+          if (fs.existsSync(candidateZip)) {
+            filePath = candidateZip;
+          } else {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: `Cannot deliver order: digital file is missing and no tracks exist for album "${item.album_title_snapshot}".`
+            });
+          }
         }
       }
 
@@ -875,19 +889,28 @@ router.post('/:id/approve', authenticate, async (req, res) => {
 
     // Send email with download links
     const baseUrl = getBaseUrl(req);
-    emailService.sendPaymentApprovedEmail(updatedOrder, itemsWithTokens, baseUrl).catch(err => {
-      console.warn('[orders] Delivery email failed:', err.message);
-    });
+    let emailDispatched = true;
+    let emailError = null;
+    try {
+      await emailService.sendPaymentApprovedEmail(updatedOrder, itemsWithTokens, baseUrl);
+    } catch (err) {
+      emailDispatched = false;
+      emailError = err.message;
+      console.warn('[orders] Delivery email warning:', err.message);
+    }
 
     res.json({
-      message: 'Payment approved successfully. Download email dispatched.',
+      message: emailDispatched
+        ? 'Payment approved successfully. Download email dispatched.'
+        : `Payment approved and download links created, but email could not be delivered: ${emailError}. You can click "Resend Email" anytime.`,
+      emailDispatched,
       order: updatedOrder,
       tokens: itemsWithTokens,
     });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[orders] approve error:', err);
-    res.status(500).json({ error: 'Failed to approve order.' });
+    res.status(500).json({ error: err.message || 'Failed to approve order.' });
   } finally {
     client.release();
   }

@@ -6953,6 +6953,47 @@ input:checked + .slider:before {
   cursor: not-allowed;
 }
 
+/* ── Admin Order Action Modals ── */
+.admin-order-modal__body {
+  padding: 20px 28px;
+  background: var(--ivory, #f8f7f3);
+}
+
+.admin-order-modal__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--ivory-mid, #f4f3f0);
+  border: 1px solid var(--border-subtle, #e5e3dc);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.admin-order-modal__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.admin-order-modal__label {
+  width: 80px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #8a8680);
+  flex-shrink: 0;
+}
+
+.admin-order-modal__notice {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary, #4a4a4a);
+  margin: 0;
+}
+
 /* ================================================================
    Admin: Success Banner
    ================================================================ */
