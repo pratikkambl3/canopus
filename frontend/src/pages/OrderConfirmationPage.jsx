@@ -102,7 +102,7 @@ export default function OrderConfirmationPage() {
             </div>
             <h1 className="confirmation-card__title">Thank You</h1>
             <p className="confirmation-card__lead">
-              Your order has been received and is waiting for bank verification. Once verified, your product ZIP download link will be sent to your email (please check your spam folder as well).
+              Your order has been received and is waiting for bank verification.
             </p>
           </>
         )}
@@ -128,16 +128,6 @@ export default function OrderConfirmationPage() {
             <strong>₹{order.total_amount || order.totalAmount}</strong>
           </div>
         </div>
-
-        {/* Pending Verification Spam Folder Alert Callout */}
-        {isPending && (
-          <div className="confirmation-spam-alert">
-            <span className="confirmation-spam-alert__icon">📬</span>
-            <div className="confirmation-spam-alert__text">
-              <strong>Please Check Your Spam / Junk Folder:</strong> Once your payment is verified, your product ZIP download link will be dispatched to <strong>{order.customer_email || order.customerEmail}</strong>. Please make sure to check your spam or junk folder as well in case the email lands there.
-            </div>
-          </div>
-        )}
 
         {/* Direct Downloads (for verified paid orders) */}
         {isPaid && order.downloads && order.downloads.length > 0 && (
