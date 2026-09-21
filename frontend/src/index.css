@@ -5173,6 +5173,32 @@ img {
   color: var(--text-primary);
 }
 
+.confirmation-spam-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--ivory-warm, #fcfaf7);
+  border: 1px solid var(--border-mid, #d6d2c8);
+  border-left: 4px solid var(--text-primary, #1a1a1a);
+  padding: 14px 18px;
+  border-radius: 2px;
+  margin-bottom: 24px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, #4a4a4a);
+}
+
+.confirmation-spam-alert__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.confirmation-spam-alert__text strong {
+  color: var(--text-primary, #1a1a1a);
+}
+
 .confirmation-card__notice {
   font-size: 12px;
   line-height: 1.6;

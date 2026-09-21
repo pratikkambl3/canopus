@@ -129,6 +129,16 @@ export default function OrderConfirmationPage() {
           </div>
         </div>
 
+        {/* Pending Verification Spam Folder Alert Callout */}
+        {isPending && (
+          <div className="confirmation-spam-alert">
+            <span className="confirmation-spam-alert__icon">📬</span>
+            <div className="confirmation-spam-alert__text">
+              <strong>Check Your Spam / Junk Folder:</strong> Once your payment is verified, your album ZIP download link will be dispatched to <strong>{order.customer_email || order.customerEmail}</strong>. Please make sure to check your spam or junk folder as well in case the email lands there.
+            </div>
+          </div>
+        )}
+
         {/* Direct Downloads (for verified paid orders) */}
         {isPaid && order.downloads && order.downloads.length > 0 && (
           <div className="confirmation-downloads" style={{ margin: '24px 0', textAlign: 'left' }}>
@@ -186,9 +196,14 @@ export default function OrderConfirmationPage() {
               If your payment was debited from your account, please reach out to our team at <strong>mr.canopus111@gmail.com</strong> with your transaction receipt.
             </p>
           ) : (
-            <p>
-              Our team manually verifies every UPI reference with our bank statement. Once approved, the album ZIP download link will appear here and be dispatched to your email.
-            </p>
+            <>
+              <p style={{ margin: '0 0 8px' }}>
+                Our team manually verifies every UPI reference with our bank statement. Once approved, the album ZIP download link will appear right here and be dispatched to your email.
+              </p>
+              <p style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 500 }}>
+                💡 <strong>Tip:</strong> Please check your <strong>Spam or Junk folder</strong> as well for the product ZIP download email if it doesn&apos;t appear in your Primary inbox.
+              </p>
+            </>
           )}
         </div>
 

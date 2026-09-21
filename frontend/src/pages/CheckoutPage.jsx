@@ -391,7 +391,7 @@ export default function CheckoutPage() {
               </form>
 
               <p className="checkout-payment__security-note">
-                🔒 Your digital order will be processed as <strong>Pending Verification</strong>. Once our admin confirms the transaction with the bank, your high-fidelity album ZIP link will be sent to your email immediately.
+                🔒 Your digital order will be processed as <strong>Pending Verification</strong>. Once our admin confirms the transaction with the bank, your high-fidelity album ZIP link will be sent to your email immediately (please make sure to check your Spam or Junk folder as well).
               </p>
             </section>
           </aside>

@@ -76,6 +76,8 @@ Payment:      ${order.payment_reference ? `UTR: ${order.payment_reference}` : 'P
 We have received your payment submission and are verifying it with our bank. 
 Once approved, your secure digital album download link will be emailed to you immediately.
 
+IMPORTANT: When your order is approved, your product ZIP will be delivered to this email. Please make sure to check your Spam or Junk folder as well in case the email lands there.
+
 Thank you for supporting CANOPUS.
 
 CANOPUS
@@ -96,6 +98,7 @@ Timeless Music. Never Gets Old.
     .badge { display: inline-block; padding: 6px 14px; background: #F0EBE4; border: 1px solid #E8E2DA; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #1A1A1A; margin-bottom: 20px; }
     .details { border-top: 1px solid #E8E2DA; border-bottom: 1px solid #E8E2DA; padding: 16px 0; margin: 24px 0; font-size: 13px; }
     .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .spam-notice { background: #F7F4F0; border-left: 3px solid #1A1A1A; padding: 12px 16px; margin: 20px 0; font-size: 13px; line-height: 1.5; color: #2A2A2A; }
     .footer { font-size: 11px; color: #7A7A7A; text-align: center; margin-top: 32px; letter-spacing: 0.05em; }
   </style>
 </head>
@@ -114,6 +117,10 @@ Timeless Music. Never Gets Old.
     </div>
 
     <p>Once your payment is approved, your digital album download link will be delivered directly to this email address.</p>
+
+    <div class="spam-notice">
+      <strong>📬 Important Note:</strong> Once approved, please make sure to check your <strong>Spam or Junk folder</strong> as well for your product ZIP download link email.
+    </div>
 
     <div class="footer">
       CANOPUS · Timeless Music. Never Gets Old.
