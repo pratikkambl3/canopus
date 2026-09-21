@@ -63,7 +63,7 @@ export default function RadioPage() {
         </p>
 
         {/* ON AIR */}
-        <OnAirBadge isPlaying={isPlaying} hasTrack={!!currentTrackId} onlineCount="1.2K" />
+        <OnAirBadge isPlaying={isPlaying} hasTrack={!!currentTrackId} />
 
         {/* Player */}
         <RadioPlayer />

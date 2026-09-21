@@ -30,6 +30,7 @@ function cacheBustedUrl(slot) {
 export default function AdminQrPanel() {
   const [activeSlot, setActiveSlot]       = useState(null);
   const [payNowEnabled, setPayNowEnabled] = useState(true);
+  const [slotImages, setSlotImages]       = useState({ 1: true, 2: true, 3: true });
   const [switching, setSwitching]         = useState(null);
   const [togglingPay, setTogglingPay]     = useState(false);
   const [error, setError]                 = useState(null);
@@ -55,11 +56,23 @@ export default function AdminQrPanel() {
       .then(data => {
         setActiveSlot(data.slot ?? 1);
         setPayNowEnabled(data.payNowEnabled !== false);
+        if (data.slots) {
+          setSlotImages({
+            1: Boolean(data.slots[1]?.hasImage),
+            2: Boolean(data.slots[2]?.hasImage),
+            3: Boolean(data.slots[3]?.hasImage),
+          });
+        }
       })
       .catch(() => {
         // fallback: try just the active slot
         getActiveQrSlot()
-          .then(d => setActiveSlot(d.slot ?? 1))
+          .then(d => {
+            setActiveSlot(d.slot ?? 1);
+            if (typeof d.hasImage === 'boolean') {
+              setSlotImages(prev => ({ ...prev, [d.slot]: d.hasImage }));
+            }
+          })
           .catch(() => setActiveSlot(1));
       });
   }, []);
@@ -109,11 +122,11 @@ export default function AdminQrPanel() {
     setError(null);
     setSuccessMsg(null);
     try {
-      await uploadQrImage(slot, file, (pct) => setUploadProgress(pct));
-      // bust cache so the <img> reloads the new file
+      const res = await uploadQrImage(slot, file, (pct) => setUploadProgress(pct));
+      // mark slot as having image and bust cache
+      setSlotImages(prev => ({ ...prev, [slot]: true }));
       setImgTs(prev => ({ ...prev, [slot]: Date.now() }));
-      // If this slot was active, keep it active
-      showSuccess(`QR Code ${slot} image uploaded successfully.`);
+      showSuccess(res.message || `QR Code ${slot} image uploaded successfully.`);
     } catch (e) {
       showError(e.message || `Failed to upload QR ${slot}. Please try again.`);
     } finally {
@@ -130,7 +143,8 @@ export default function AdminQrPanel() {
     setSuccessMsg(null);
     try {
       const res = await deleteQrImage(slot);
-      // bust cache
+      // mark slot as empty and bust cache
+      setSlotImages(prev => ({ ...prev, [slot]: false }));
       setImgTs(prev => ({ ...prev, [slot]: Date.now() }));
       // If the deleted slot was the active one, update activeSlot from response (backend switches it)
       if (slot === activeSlot) {
@@ -237,6 +251,7 @@ export default function AdminQrPanel() {
           const isSwitching = switching === slot;
           const isUploading = uploadingSlot === slot;
           const isDeleting  = deletingSlot === slot;
+          const hasImage    = slotImages[slot];
 
           return (
             <div
@@ -247,27 +262,58 @@ export default function AdminQrPanel() {
                 <div className="admin-qr-card__active-ribbon">✓ ACTIVE</div>
               )}
 
-              {/* QR Image */}
-              <div className="admin-qr-card__img-wrap">
-                <img
-                  key={imgTs[slot]}
-                  src={`/payment-qr-${slot}.png?t=${imgTs[slot]}`}
-                  alt={`Payment QR Code ${slot}`}
-                  className="admin-qr-card__img"
-                  onError={(e) => { e.target.style.opacity = '0.15'; }}
-                />
-                {isUploading && (
-                  <div className="admin-qr-card__upload-overlay">
-                    <div className="admin-qr-card__upload-progress">
-                      <div
-                        className="admin-qr-card__upload-bar"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
+              {/* QR Image or Empty placeholder */}
+              {hasImage ? (
+                <div className="admin-qr-card__img-wrap">
+                  <img
+                    key={imgTs[slot]}
+                    src={`/api/orders/payment-qr/image/${slot}?t=${imgTs[slot]}`}
+                    alt={`Payment QR Code ${slot}`}
+                    className="admin-qr-card__img"
+                    onLoad={(e) => { e.target.style.opacity = '1'; }}
+                    onError={() => {
+                      setSlotImages(prev => ({ ...prev, [slot]: false }));
+                    }}
+                  />
+                  {isUploading && (
+                    <div className="admin-qr-card__upload-overlay">
+                      <div className="admin-qr-card__upload-progress">
+                        <div
+                          className="admin-qr-card__upload-bar"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <span className="admin-qr-card__upload-pct">{uploadProgress}%</span>
                     </div>
-                    <span className="admin-qr-card__upload-pct">{uploadProgress}%</span>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="admin-qr-card__img-wrap admin-qr-card__img-wrap--empty"
+                  onClick={() => handleUploadClick(slot)}
+                  role="button"
+                  tabIndex={0}
+                  title="Click to upload QR image"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleUploadClick(slot); }}
+                >
+                  <div className="admin-qr-empty-placeholder">
+                    <span className="admin-qr-empty-icon">📷</span>
+                    <span className="admin-qr-empty-text">No QR Uploaded</span>
+                    <span className="admin-qr-empty-sub">Click to select image</span>
                   </div>
-                )}
-              </div>
+                  {isUploading && (
+                    <div className="admin-qr-card__upload-overlay">
+                      <div className="admin-qr-card__upload-progress">
+                        <div
+                          className="admin-qr-card__upload-bar"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <span className="admin-qr-card__upload-pct">{uploadProgress}%</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Hidden file input */}
               <input
@@ -313,7 +359,7 @@ export default function AdminQrPanel() {
                 >
                   {isUploading
                     ? `Uploading… ${uploadProgress}%`
-                    : '⬆ Upload New QR'}
+                    : hasImage ? '⬆ Replace QR Image' : '⬆ Upload QR Image'}
                 </button>
 
                 {/* Delete / reset QR */}
@@ -321,11 +367,11 @@ export default function AdminQrPanel() {
                   type="button"
                   className="btn-danger admin-qr-card__btn admin-qr-card__delete-btn"
                   onClick={() => handleDelete(slot)}
-                  disabled={isDeleting || isUploading || switching !== null}
+                  disabled={isDeleting || isUploading || switching !== null || !hasImage}
                   id={`delete-qr-${slot}-btn`}
-                  style={{ fontSize: 12, marginTop: 4 }}
+                  style={{ fontSize: 12, marginTop: 4, opacity: !hasImage ? 0.4 : 0.85 }}
                 >
-                  {isDeleting ? 'Deleting…' : '🗑 Delete QR Image'}
+                  {isDeleting ? 'Deleting…' : hasImage ? '🗑 Delete QR Image' : 'No Image to Delete'}
                 </button>
               </div>
             </div>

@@ -1,4 +1,4 @@
-export default function OnAirBadge({ isPlaying, hasTrack, onlineCount = '1.2K' }) {
+export default function OnAirBadge({ isPlaying, hasTrack }) {
   const statusLabel = isPlaying ? 'On Air' : (hasTrack ? 'Paused' : 'Off Air');
   
   return (
@@ -7,12 +7,6 @@ export default function OnAirBadge({ isPlaying, hasTrack, onlineCount = '1.2K' }
       <span className="on-air-badge__label">
         {statusLabel}
       </span>
-      {isPlaying && (
-        <>
-          <span className="on-air-badge__sep" aria-hidden="true" />
-          <span className="on-air-badge__count">{onlineCount} Online</span>
-        </>
-      )}
     </div>
   );
 }

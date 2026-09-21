@@ -25,27 +25,37 @@ const { authenticate } = require('../middleware/auth');
 const emailService = require('../services/emailService');
 
 /* ── Multer storage for QR image uploads ── */
-const FRONTEND_PUBLIC_DIR = (() => {
-  // Try several candidate paths for the frontend public dir
-  const candidates = [
-    path.join(__dirname, '../../../frontend/public'),
-    path.join(__dirname, '../../public'),
-    path.join(__dirname, '../public'),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return candidates[0]; // fallback — will be created if needed
-})();
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads');
+const QR_UPLOAD_DIR = path.join(UPLOAD_DIR, 'qr');
+try { fs.mkdirSync(QR_UPLOAD_DIR, { recursive: true }); } catch (_) {}
+
+const FRONTEND_PUBLIC_DIRS = [
+  path.join(__dirname, '../../../frontend/public'),
+  path.join(__dirname, '../../../public'),
+  path.join(__dirname, '../../public'),
+  path.join(__dirname, '../public'),
+].filter(d => fs.existsSync(d));
 
 const qrStorage = multer.diskStorage({
   destination(_req, _file, cb) {
-    fs.mkdirSync(FRONTEND_PUBLIC_DIR, { recursive: true });
-    cb(null, FRONTEND_PUBLIC_DIR);
+    try { fs.mkdirSync(QR_UPLOAD_DIR, { recursive: true }); } catch (_) {}
+    cb(null, QR_UPLOAD_DIR);
   },
-  filename(req, _file, cb) {
+  filename(req, file, cb) {
     const slot = parseInt(req.params.slot, 10);
-    cb(null, `payment-qr-${slot}.png`);
+    // Remove any previous payment-qr-${slot}.* in QR_UPLOAD_DIR first
+    try {
+      if (fs.existsSync(QR_UPLOAD_DIR)) {
+        const files = fs.readdirSync(QR_UPLOAD_DIR);
+        for (const f of files) {
+          if (f.startsWith(`payment-qr-${slot}.`)) {
+            fs.unlinkSync(path.join(QR_UPLOAD_DIR, f));
+          }
+        }
+      }
+    } catch (_) {}
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `payment-qr-${slot}${ext}`);
   },
 });
 
@@ -280,33 +290,115 @@ async function getActiveQrSlot() {
   return 1; // default to slot 1
 }
 
+/* ── Helper: check if a QR slot was explicitly deleted ── */
+async function isSlotDeleted(slot) {
+  try {
+    const { rows } = await pool.query(
+      "SELECT value FROM app_settings WHERE key = $1",
+      [`qr_slot_${slot}_deleted`]
+    );
+    return rows.length > 0 && rows[0].value === 'true';
+  } catch (_) {
+    return false;
+  }
+}
+
 /* ── Helper: resolve QR image file path from slot ── */
 function resolveQrPath(slot) {
-  const filename = `payment-qr-${slot}.png`;
-  const candidates = [
-    path.join(__dirname, `../public/${filename}`),
-    path.join(__dirname, `../../public/${filename}`),
-    path.join(__dirname, `../../../frontend/public/${filename}`),
-    path.join(process.env.UPLOAD_DIR || '/app/uploads', filename),
+  // 1. Check custom uploaded file in QR_UPLOAD_DIR
+  try {
+    if (fs.existsSync(QR_UPLOAD_DIR)) {
+      const files = fs.readdirSync(QR_UPLOAD_DIR);
+      for (const f of files) {
+        if (f.startsWith(`payment-qr-${slot}.`)) {
+          return path.join(QR_UPLOAD_DIR, f);
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 2. Check candidates in public dirs
+  const filenames = [
+    `payment-qr-${slot}.png`,
+    `payment-qr-${slot}.jpg`,
+    `payment-qr-${slot}.jpeg`,
+    `payment-qr-${slot}.webp`,
   ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+  const searchDirs = [
+    path.join(__dirname, '../public'),
+    path.join(__dirname, '../../public'),
+    path.join(__dirname, '../../../frontend/public'),
+    path.join(__dirname, '../../../public'),
+    UPLOAD_DIR,
+  ];
+
+  for (const dir of searchDirs) {
+    for (const fn of filenames) {
+      const p = path.join(dir, fn);
+      if (fs.existsSync(p)) return p;
+    }
   }
+
   return null;
 }
+
+/* ── GET /api/orders/payment-qr/image/:slot — public (stream QR image dynamically) ── */
+router.get('/payment-qr/image/:slot', async (req, res) => {
+  try {
+    const slot = parseInt(req.params.slot, 10);
+    if (isNaN(slot) || slot < 1 || slot > 3) {
+      return res.status(400).json({ error: 'Slot must be 1, 2, or 3.' });
+    }
+
+    const deleted = await isSlotDeleted(slot);
+    if (deleted) {
+      return res.status(404).json({ error: 'QR Code image deleted.' });
+    }
+
+    const qrPath = resolveQrPath(slot);
+    if (!qrPath) {
+      return res.status(404).json({ error: 'QR Code image not found.' });
+    }
+
+    const ext = path.extname(qrPath).toLowerCase();
+    const mimeTypes = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.gif': 'image/gif',
+    };
+    if (mimeTypes[ext]) {
+      res.setHeader('Content-Type', mimeTypes[ext]);
+    }
+
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.sendFile(path.resolve(qrPath));
+  } catch (err) {
+    console.error('[orders] GET /payment-qr/image/:slot error:', err);
+    res.status(500).json({ error: 'Failed to serve QR image.' });
+  }
+});
 
 /* ── GET /api/orders/payment-qr/active — public (get active QR slot info + pay_now flag) ── */
 router.get('/payment-qr/active', async (_req, res) => {
   try {
     const slot = await getActiveQrSlot();
+    const deleted = await isSlotDeleted(slot);
+    const qrPath = !deleted ? resolveQrPath(slot) : null;
+
     // Also fetch pay_now_enabled setting
     const { rows: settingRows } = await pool.query(
       "SELECT value FROM app_settings WHERE key = 'pay_now_enabled'"
     );
     const payNowEnabled = settingRows.length === 0 || settingRows[0].value !== 'false';
+
     res.json({
       slot,
-      imageUrl: `/payment-qr-${slot}.png`,
+      hasImage: Boolean(qrPath),
+      imageUrl: `/api/orders/payment-qr/image/${slot}`,
       downloadUrl: `/api/orders/payment-qr/download`,
       payNowEnabled,
     });
@@ -321,12 +413,24 @@ router.get('/payment-qr/settings', async (_req, res) => {
   try {
     const slot = await getActiveQrSlot();
     const { rows } = await pool.query(
-      "SELECT key, value FROM app_settings WHERE key IN ('pay_now_enabled', 'active_qr_slot')"
+      "SELECT key, value FROM app_settings WHERE key IN ('pay_now_enabled', 'active_qr_slot', 'qr_slot_1_deleted', 'qr_slot_2_deleted', 'qr_slot_3_deleted')"
     );
     const map = {};
     for (const r of rows) map[r.key] = r.value;
     const payNowEnabled = map['pay_now_enabled'] !== 'false'; // default true
-    res.json({ slot, payNowEnabled });
+
+    const slots = {};
+    for (const s of [1, 2, 3]) {
+      const isDeleted = map[`qr_slot_${s}_deleted`] === 'true';
+      const p = !isDeleted ? resolveQrPath(s) : null;
+      slots[s] = {
+        slot: s,
+        hasImage: Boolean(p),
+        imageUrl: p ? `/api/orders/payment-qr/image/${s}` : null,
+      };
+    }
+
+    res.json({ slot, payNowEnabled, slots });
   } catch (err) {
     console.error('[orders] GET /payment-qr/settings error:', err);
     res.status(500).json({ error: 'Failed to fetch QR settings.' });
@@ -364,7 +468,7 @@ router.put('/payment-qr/slot', authenticate, async (req, res) => {
        ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
       [String(slot)]
     );
-    res.json({ success: true, slot, imageUrl: `/payment-qr-${slot}.png` });
+    res.json({ success: true, slot, imageUrl: `/api/orders/payment-qr/image/${slot}` });
   } catch (err) {
     console.error('[orders] PUT /payment-qr/slot error:', err);
     res.status(500).json({ error: 'Failed to update active QR slot.' });
@@ -389,10 +493,32 @@ router.post('/payment-qr/upload/:slot', authenticate, (req, res, next) => {
       return res.status(400).json({ error: 'No image file uploaded.' });
     }
     const slot = parseInt(req.params.slot, 10);
+
+    // Clear deleted flag in DB
+    await pool.query(
+      "DELETE FROM app_settings WHERE key = $1",
+      [`qr_slot_${slot}_deleted`]
+    );
+
+    // Optionally sync to frontend public dirs if they exist in local dev
+    try {
+      const uploadedPath = req.file.path;
+      const ext = path.extname(uploadedPath).toLowerCase() || '.png';
+      for (const pubDir of FRONTEND_PUBLIC_DIRS) {
+        try {
+          fs.copyFileSync(uploadedPath, path.join(pubDir, `payment-qr-${slot}${ext}`));
+          if (ext !== '.png') {
+            fs.copyFileSync(uploadedPath, path.join(pubDir, `payment-qr-${slot}.png`));
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
     res.json({
       success: true,
       slot,
-      imageUrl: `/payment-qr-${slot}.png`,
+      hasImage: true,
+      imageUrl: `/api/orders/payment-qr/image/${slot}`,
       message: `QR Code ${slot} updated successfully.`,
     });
   } catch (err) {
@@ -409,27 +535,49 @@ router.delete('/payment-qr/slot/:slot', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Slot must be 1, 2, or 3.' });
     }
 
-    // Delete the QR image file from frontend public dir
-    const filename = `payment-qr-${slot}.png`;
-    const candidates = [
-      path.join(FRONTEND_PUBLIC_DIR, filename),
-      path.join(__dirname, '../public', filename),
-      path.join(__dirname, '../../public', filename),
-    ];
-
+    // 1. Delete files from QR_UPLOAD_DIR
     let deleted = false;
-    for (const filePath of candidates) {
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-          deleted = true;
-        } catch (e) {
-          console.warn('[orders] Could not delete QR file:', filePath, e.message);
+    try {
+      if (fs.existsSync(QR_UPLOAD_DIR)) {
+        const files = fs.readdirSync(QR_UPLOAD_DIR);
+        for (const f of files) {
+          if (f.startsWith(`payment-qr-${slot}.`)) {
+            try {
+              fs.unlinkSync(path.join(QR_UPLOAD_DIR, f));
+              deleted = true;
+            } catch (e) {
+              console.warn('[orders] Could not delete file:', f, e.message);
+            }
+          }
         }
       }
+    } catch (e) {
+      console.warn('[orders] Error reading QR_UPLOAD_DIR on delete:', e.message);
     }
 
-    // If the deleted slot was the active one, switch to another slot
+    // 2. Delete from public dirs for local dev
+    for (const pubDir of FRONTEND_PUBLIC_DIRS) {
+      try {
+        const files = fs.readdirSync(pubDir);
+        for (const f of files) {
+          if (f.startsWith(`payment-qr-${slot}.`)) {
+            try {
+              fs.unlinkSync(path.join(pubDir, f));
+              deleted = true;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Mark as deleted in DB so fallback images are also suppressed
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, 'true', NOW())
+       ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`,
+      [`qr_slot_${slot}_deleted`]
+    );
+
+    // 4. If the deleted slot was the active one, switch to another slot
     const activeSlot = await getActiveQrSlot();
     if (activeSlot === slot) {
       const fallbackSlot = slot === 1 ? 2 : 1;
@@ -443,10 +591,9 @@ router.delete('/payment-qr/slot/:slot', authenticate, async (req, res) => {
     res.json({
       success: true,
       slot,
-      deleted,
-      message: deleted
-        ? `QR Code ${slot} image deleted. You can upload a new one.`
-        : `QR Code ${slot} image not found (already empty).`,
+      deleted: true,
+      hasImage: false,
+      message: `QR Code ${slot} image removed. You can upload a new one.`,
     });
   } catch (err) {
     console.error('[orders] DELETE /payment-qr/slot/:slot error:', err);
@@ -458,22 +605,35 @@ router.delete('/payment-qr/slot/:slot', authenticate, async (req, res) => {
 router.get('/payment-qr/download', async (_req, res) => {
   try {
     const slot = await getActiveQrSlot();
-    const qrPath = resolveQrPath(slot);
+    const deleted = await isSlotDeleted(slot);
+    const qrPath = !deleted ? resolveQrPath(slot) : null;
     if (qrPath) {
-      res.setHeader('Content-Type', 'image/png');
-      return res.download(qrPath, `payment-qr-${slot}.png`);
+      const ext = path.extname(qrPath).toLowerCase() || '.png';
+      const mimeTypes = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+      };
+      res.setHeader('Content-Type', mimeTypes[ext] || 'image/png');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.download(qrPath, `payment-qr-${slot}${ext}`);
     }
-    // Fallback to legacy payment-qr.png
-    const legacyCandidates = [
-      path.join(__dirname, '../public/payment-qr.png'),
-      path.join(__dirname, '../../public/payment-qr.png'),
-      path.join(__dirname, '../../../frontend/public/payment-qr.png'),
-      path.join(process.env.UPLOAD_DIR || '/app/uploads', 'payment-qr.png'),
-    ];
-    for (const p of legacyCandidates) {
-      if (fs.existsSync(p)) {
-        res.setHeader('Content-Type', 'image/png');
-        return res.download(p, 'payment-qr.png');
+
+    if (!deleted) {
+      // Fallback to legacy payment-qr.png
+      const legacyCandidates = [
+        path.join(__dirname, '../public/payment-qr.png'),
+        path.join(__dirname, '../../public/payment-qr.png'),
+        path.join(__dirname, '../../../frontend/public/payment-qr.png'),
+        path.join(UPLOAD_DIR, 'payment-qr.png'),
+      ];
+      for (const p of legacyCandidates) {
+        if (fs.existsSync(p)) {
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          return res.download(p, 'payment-qr.png');
+        }
       }
     }
     res.status(404).json({ error: 'Payment QR image not found.' });

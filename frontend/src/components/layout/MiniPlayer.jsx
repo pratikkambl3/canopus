@@ -146,8 +146,6 @@ export default function MiniPlayer() {
     volume, isMuted, shuffleEnabled,
   } = state;
 
-  const topBarRef = useRef(null);
-
   /* Don't render if nothing is loaded */
   if (!currentTrack) return null;
 
@@ -166,36 +164,8 @@ export default function MiniPlayer() {
     actions.seek(Math.max(0, currentTime - 10));
   };
 
-  /* Interactive Top Bar scrub */
-  const handleTopClick = (e) => {
-    if (!duration || !topBarRef.current) return;
-    const rect = topBarRef.current.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    actions.seek(ratio * duration);
-  };
-
   return (
     <div className="global-player" role="region" aria-label="Now Playing">
-      {/* Top interactive hairline seek bar */}
-      <div
-        ref={topBarRef}
-        className="global-player__top-bar"
-        onClick={handleTopClick}
-        onTouchStart={handleTopClick}
-        role="slider"
-        aria-label="Fast seek track"
-        aria-valuemin={0}
-        aria-valuemax={Math.floor(duration) || 0}
-        aria-valuenow={Math.floor(currentTime) || 0}
-      >
-        <div
-          className="global-player__top-progress"
-          style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
-          aria-hidden="true"
-        />
-      </div>
-
       <div className="global-player__inner">
         {/* LEFT / ROW 2 LEFT — Artwork + Track info */}
         <div className="global-player__track">

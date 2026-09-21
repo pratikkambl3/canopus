@@ -27,7 +27,7 @@ export default function CheckoutPage() {
 
   // Active QR: fetched dynamically from backend (admin-switchable)
   const [activeQrSlot, setActiveQrSlot] = useState(1);
-  const [qrImageUrl, setQrImageUrl]     = useState('/payment-qr-1.png');
+  const [qrImageUrl, setQrImageUrl]     = useState('/api/orders/payment-qr/image/1');
   const [payNowEnabled, setPayNowEnabled] = useState(true); // controlled via admin panel
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function CheckoutPage() {
       .then(data => {
         if (data && data.slot) {
           setActiveQrSlot(data.slot);
-          setQrImageUrl(data.imageUrl || `/payment-qr-${data.slot}.png`);
+          setQrImageUrl(data.imageUrl || `/api/orders/payment-qr/image/${data.slot}`);
         }
         // respect the pay_now toggle from admin
         if (data && typeof data.payNowEnabled === 'boolean') {
