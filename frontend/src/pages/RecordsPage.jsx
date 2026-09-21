@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useAudio } from '../context/AudioContext';
 import { getRecords } from '../services/recordsService';
 import RecordsList from '../components/records/RecordsList';
-import MiniPlayer from '../components/layout/MiniPlayer';
 
 export default function RecordsPage() {
   const { state, actions } = useAudio();
@@ -25,9 +24,6 @@ export default function RecordsPage() {
       ) : (
         <RecordsList records={records} />
       )}
-
-      {/* Persistent mini player */}
-      <MiniPlayer />
     </div>
   );
 }

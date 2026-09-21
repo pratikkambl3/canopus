@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AudioProvider } from './context/AudioContext';
 import { CartProvider } from './context/CartContext';
 import Header from './components/layout/Header';
+import MiniPlayer from './components/layout/MiniPlayer';
 import CartDrawer from './components/cart/CartDrawer';
 import RadioPage from './pages/RadioPage';
 import RecordsPage from './pages/RecordsPage';
@@ -57,6 +58,8 @@ function AppInner() {
         <Route path="/loginWithSuperCreds=true"    element={<AdminPage />} />
         <Route path="*"                            element={<RadioPage />} />
       </Routes>
+      {/* Global persistent player — shows on all pages when a track is active */}
+      <MiniPlayer />
     </>
   );
 }
