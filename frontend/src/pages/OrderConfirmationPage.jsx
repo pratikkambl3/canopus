@@ -102,7 +102,7 @@ export default function OrderConfirmationPage() {
             </div>
             <h1 className="confirmation-card__title">Thank You</h1>
             <p className="confirmation-card__lead">
-              Your order has been received and is waiting for bank verification.
+              Your order has been received and is waiting for bank verification. Once verified, your product ZIP download link will be sent to your email (please check your spam folder as well).
             </p>
           </>
         )}
@@ -134,7 +134,7 @@ export default function OrderConfirmationPage() {
           <div className="confirmation-spam-alert">
             <span className="confirmation-spam-alert__icon">📬</span>
             <div className="confirmation-spam-alert__text">
-              <strong>Check Your Spam / Junk Folder:</strong> Once your payment is verified, your album ZIP download link will be dispatched to <strong>{order.customer_email || order.customerEmail}</strong>. Please make sure to check your spam or junk folder as well in case the email lands there.
+              <strong>Please Check Your Spam / Junk Folder:</strong> Once your payment is verified, your product ZIP download link will be dispatched to <strong>{order.customer_email || order.customerEmail}</strong>. Please make sure to check your spam or junk folder as well in case the email lands there.
             </div>
           </div>
         )}
@@ -197,12 +197,13 @@ export default function OrderConfirmationPage() {
             </p>
           ) : (
             <>
-              <p style={{ margin: '0 0 8px' }}>
+              <p style={{ margin: '0 0 10px' }}>
                 Our team manually verifies every UPI reference with our bank statement. Once approved, the album ZIP download link will appear right here and be dispatched to your email.
               </p>
-              <p style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 500 }}>
-                💡 <strong>Tip:</strong> Please check your <strong>Spam or Junk folder</strong> as well for the product ZIP download email if it doesn&apos;t appear in your Primary inbox.
-              </p>
+              <div className="confirmation-card__spam-pill">
+                <span>📧</span>
+                <span><strong>Important:</strong> Please check your <strong>Spam or Junk folder</strong> as well for the product ZIP download link email.</span>
+              </div>
             </>
           )}
         </div>

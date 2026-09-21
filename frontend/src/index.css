@@ -5210,6 +5210,20 @@ img {
   border-radius: 2px;
 }
 
+.confirmation-card__spam-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ivory-warm, #fcfaf7);
+  border: 1px solid var(--border-mid, #d6d2c8);
+  border-left: 3px solid var(--gold-mid, #d97706);
+  padding: 8px 12px;
+  border-radius: 2px;
+  color: var(--text-primary, #1a1a1a);
+  font-size: 12px;
+  text-align: left;
+}
+
 .confirmation-card__actions {
   display: flex;
   align-items: center;
