@@ -3,10 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getProduct } from '../services/storeService';
 import { useCart } from '../context/CartContext';
 import { useAudio } from '../context/AudioContext';
-import { usePreviewPlayer } from '../hooks/usePreviewPlayer';
 import {
   IconPlay, IconPause, IconPlayCircle, IconBag, IconCheck, formatTime,
 } from '../components/shared/Icons';
+import IntegratedPlayer from '../components/shared/IntegratedPlayer';
 
 function VinylDisc() {
   return (
@@ -35,7 +35,6 @@ export default function ProductDetailsPage() {
 
   const { addToCart, isInCart } = useCart();
   const { state: audioState, actions: audioActions } = useAudio();
-  const { activePreview, togglePreview } = usePreviewPlayer();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -67,26 +66,65 @@ export default function ProductDetailsPage() {
 
   const tracks = product.tracks || [];
   const inCart = isInCart(product.id);
-  const previewTrackId = product.previewTrackId || product.firstTrackId || tracks[0]?.id || null;
 
-  const isHeroPreview = activePreview.productId === product.id && (!activePreview.trackId || activePreview.trackId === previewTrackId);
-  const isHeroPlaying = isHeroPreview && activePreview.isPlaying;
-  const isHeroLoading = isHeroPreview && activePreview.loading;
-  const heroCurTime = isHeroPreview ? activePreview.currentTime : 0;
-  const heroTrack = tracks.find(t => t.id === previewTrackId);
-  const heroMaxTime = (heroTrack?.duration && Number(heroTrack.duration) > 0)
-    ? Number(heroTrack.duration)
-    : (isHeroPreview && activePreview.duration > 0 ? activePreview.duration : 0);
+  /* Enrich tracks for unified audio context playback */
+  const enrichedTracks = tracks.map((t, idx) => ({
+    id: t.id || `${product.id}-track-${idx}`,
+    title: t.title,
+    originalTitle: t.originalTitle,
+    version: t.version,
+    bpm: (t.bpm && Number(t.bpm) > 0) ? Number(t.bpm) : null,
+    key: t.key,
+    duration: t.duration || null,
+    artworkUrl: t.artworkUrl || product.artworkUrl || null,
+    audioUrl: t.audioUrl || t.previewUrl || `/api/products/${product.id}/preview?trackId=${t.id}`,
+    artist: product.artist || 'CANOPUS',
+    albumTitle: product.title,
+    productId: product.id,
+    genre: product.genre || '',
+  }));
+
+  const isProductActive  = enrichedTracks.some(t => t.id === audioState.currentTrackId);
+  const isProductPlaying = isProductActive && audioState.isPlaying;
+
+  const previewTrackId = product.previewTrackId || product.firstTrackId || tracks[0]?.id || null;
+  const isHeroActive  = audioState.currentTrackId === (previewTrackId || enrichedTracks[0]?.id);
+  const isHeroPlaying = isHeroActive && audioState.isPlaying;
+  const heroCurTime   = isHeroActive ? audioState.currentTime : 0;
+  const heroTrack     = tracks.find(t => t.id === previewTrackId) || tracks[0];
+  const heroMaxTime   = isHeroActive && audioState.duration > 0
+    ? audioState.duration
+    : ((heroTrack?.duration && Number(heroTrack.duration) > 0) ? Number(heroTrack.duration) : 0);
 
   const handleHeroPreview = () => {
-    if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, previewTrackId, null);
+    if (!enrichedTracks.length) return;
+    const targetId = previewTrackId || enrichedTracks[0].id;
+    if (audioState.currentTrackId === targetId) {
+      audioActions.togglePlay();
+      return;
+    }
+    if (!isProductActive) {
+      audioActions.loadTracks(enrichedTracks);
+    }
+    audioActions.selectTrack(targetId);
   };
 
   const handleTrackPreview = (trackId, e) => {
     e?.stopPropagation();
-    if (audioState?.isPlaying) audioActions.pause();
-    togglePreview(product.id, trackId, null);
+    if (audioState.currentTrackId === trackId) {
+      audioActions.togglePlay();
+      return;
+    }
+    if (!isProductActive) {
+      audioActions.loadTracks(enrichedTracks);
+    }
+    audioActions.selectTrack(trackId);
+  };
+
+  const handlePlayAll = () => {
+    if (!enrichedTracks.length) return;
+    audioActions.loadTracks(enrichedTracks);
+    audioActions.selectTrack(enrichedTracks[0].id);
   };
 
   const handleBuyNow = () => {
@@ -152,19 +190,15 @@ export default function ProductDetailsPage() {
                 aria-label={isHeroPlaying ? 'Pause preview' : 'Play preview'}
               >
                 <span className="btn-preview__icon">
-                  {isHeroLoading ? (
-                    <span className="preview-spinner" />
-                  ) : isHeroPlaying ? (
+                  {isHeroPlaying ? (
                     <IconPause />
                   ) : (
                     <IconPlay />
                   )}
                 </span>
                 <span className="btn-preview__label">
-                  {isHeroLoading
-                    ? 'Loading preview…'
-                    : isHeroPlaying
-                    ? `Preview ${formatTime(heroCurTime)}${heroMaxTime > 0 ? ` / ${formatTime(heroMaxTime)}` : ''}`
+                  {isHeroPlaying
+                    ? `Playing ${formatTime(heroCurTime)}${heroMaxTime > 0 ? ` / ${formatTime(heroMaxTime)}` : ''}`
                     : `Play Preview${product.previewTrack?.title ? `: ${product.previewTrack.title}` : ''}`}
                 </span>
               </button>
@@ -232,20 +266,48 @@ export default function ProductDetailsPage() {
       {/* Track Preview Section */}
       <section className="product-tracks-section">
         <div className="product-tracks__header">
-          <h2 className="product-tracks__title">
-            {product.previewEnabled === false ? 'Tracklist' : 'Tracklist Preview'}
-          </h2>
-          <span className="product-tracks__count">{tracks.length} {tracks.length === 1 ? 'Track' : 'Tracks'}</span>
+          <div className="product-tracks__header-left">
+            <h2 className="product-tracks__title">
+              {product.previewEnabled === false ? 'Tracklist' : 'Tracklist Preview'}
+            </h2>
+            {isProductActive && (
+              <span className="product-tracks__active-pill">
+                <span className="tracklist-head__pulse" />
+                {isProductPlaying ? 'NOW PLAYING' : 'AUDIO READY'}
+              </span>
+            )}
+          </div>
+          <div className="product-tracks__header-right">
+            {tracks.length > 1 && (
+              <button
+                type="button"
+                className="btn-secondary btn-sm product-tracks__playall-btn"
+                onClick={handlePlayAll}
+              >
+                <IconPlay /> Play All
+              </button>
+            )}
+            <span className="product-tracks__count">{tracks.length} {tracks.length === 1 ? 'Track' : 'Tracks'}</span>
+          </div>
         </div>
+
+        {/* Integrated Player Console inside Product Section */}
+        {isProductActive && (
+          <div className="product-tracks__player-wrap">
+            <IntegratedPlayer
+              variant="inline"
+              subtitle={`${product.title}${product.artist ? ` · ${product.artist}` : ''}`}
+            />
+          </div>
+        )}
 
         {tracks.length === 0 ? (
           <p className="product-tracks__empty">No tracks available.</p>
         ) : (
           <ol className="product-tracklist" aria-label="Album tracks">
             {tracks.map((track, idx) => {
-              const isTrackActive  = activePreview.productId === product.id && activePreview.trackId === track.id;
-              const isTrackPlaying = isTrackActive && activePreview.isPlaying;
-              const isTrackLoading = isTrackActive && activePreview.loading;
+              const isTrackActive  = audioState.currentTrackId === track.id;
+              const isTrackPlaying = isTrackActive && audioState.isPlaying;
               const thumb = track.artworkUrl || product.artworkUrl || null;
 
               return (
@@ -254,7 +316,7 @@ export default function ProductDetailsPage() {
                     type="button"
                     className="product-track-row__btn"
                     onClick={(e) => handleTrackPreview(track.id, e)}
-                    aria-label={`Preview ${track.title}`}
+                    aria-label={`Play ${track.title}`}
                   >
                     <span className="product-track-row__num">
                       {isTrackPlaying ? (
@@ -281,16 +343,14 @@ export default function ProductDetailsPage() {
 
                     <span className="product-track-row__dur">
                       {isTrackPlaying
-                        ? `${formatTime(activePreview.currentTime)} / ${formatTime(track.duration || activePreview.duration || 0)}`
+                        ? `${formatTime(audioState.currentTime)} / ${formatTime(track.duration || audioState.duration || 0)}`
                         : track.duration
                         ? formatTime(track.duration)
                         : '—'}
                     </span>
 
                     <span className="product-track-row__icon" aria-hidden="true">
-                      {isTrackLoading ? (
-                        <span className="preview-spinner preview-spinner--sm" />
-                      ) : isTrackPlaying ? (
+                      {isTrackPlaying ? (
                         <IconPause />
                       ) : (
                         <IconPlayCircle />

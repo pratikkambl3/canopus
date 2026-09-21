@@ -1178,6 +1178,572 @@ img {
 }
 
 /* ================================================================
+   INTEGRATED PLAYER SYSTEM (Record Overlay & Product Section)
+   ================================================================ */
+
+.int-player {
+  position: relative;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+/* ── Top hairline progress ── */
+.int-player__hairline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border);
+  overflow: hidden;
+  z-index: 5;
+}
+
+.int-player__hairline-fill {
+  height: 100%;
+  background: var(--text-primary);
+  transition: width 100ms linear;
+}
+
+/* ── Animated Equalizer ── */
+.int-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  width: 14px;
+}
+
+.int-eq span {
+  display: inline-block;
+  width: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  height: 3px;
+  transition: height 150ms ease;
+}
+
+.int-eq--playing span:nth-child(1) {
+  animation: eq-bounce 600ms ease-in-out infinite alternate;
+}
+.int-eq--playing span:nth-child(2) {
+  animation: eq-bounce 800ms ease-in-out infinite alternate 150ms;
+}
+.int-eq--playing span:nth-child(3) {
+  animation: eq-bounce 550ms ease-in-out infinite alternate 300ms;
+}
+.int-eq--playing span:nth-child(4) {
+  animation: eq-bounce 700ms ease-in-out infinite alternate 75ms;
+}
+
+@keyframes eq-bounce {
+  0% { height: 2px; }
+  100% { height: 12px; }
+}
+
+/* ── Track Details ── */
+.int-player__track {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.int-player__art-wrap {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--ivory-mid);
+  border: 1px solid var(--border-mid);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.int-player__art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.int-player__art--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--text-faint);
+}
+
+.int-player__art--spin {
+  animation: spin-disc 6s linear infinite;
+  border-radius: 50%;
+}
+
+.int-player__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.int-player__eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.int-player__status {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.int-player__title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.int-player__meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+/* ── Center Controls & Seek Row ── */
+.int-player__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.int-player__controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.int-icon-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: color var(--t-fast), transform var(--t-fast);
+}
+
+.int-icon-btn:hover {
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.int-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.int-shuffle-btn--active {
+  color: var(--text-primary);
+  position: relative;
+}
+
+.int-shuffle-btn--active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-primary);
+}
+
+.int-play-btn {
+  background: var(--text-primary);
+  border: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--ivory);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  transition: background var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
+}
+
+.int-play-btn:hover {
+  background: #000;
+  transform: scale(1.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.26);
+}
+
+.int-play-btn:active {
+  transform: scale(0.96);
+}
+
+.int-play-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* ── Seek Bar ── */
+.int-player__seek-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.int-time-text {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  width: 38px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.int-seek {
+  flex: 1;
+  position: relative;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.int-seek__track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background: var(--border-mid);
+  border-radius: 2px;
+  transition: height var(--t-fast);
+}
+
+.int-seek:hover .int-seek__track {
+  height: 5px;
+}
+
+.int-seek__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--text-primary);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.int-seek__thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--text-primary);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform var(--t-fast);
+  pointer-events: none;
+}
+
+.int-seek:hover .int-seek__thumb,
+.int-seek:focus-visible .int-seek__thumb {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ── Right Volume ── */
+.int-player__right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.int-vol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.int-vol__slider-wrap {
+  overflow: hidden;
+  width: 0;
+  opacity: 0;
+  transition: width 200ms var(--ease), opacity 180ms var(--ease);
+}
+
+.int-vol__slider-wrap--open,
+.int-vol:hover .int-vol__slider-wrap {
+  width: 80px;
+  opacity: 1;
+}
+
+.int-vol__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 3px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  display: block;
+}
+
+.int-vol__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  cursor: pointer;
+}
+
+.int-vol__slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: none;
+  cursor: pointer;
+}
+
+/* ─────────────────────────────────────────────────────────
+   VARIANT A: OVERLAY DOCKED PLAYER (.int-player--overlay)
+   Pinned inside RecordDetailsOverlay modal
+   ───────────────────────────────────────────────────────── */
+.int-player--overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--global-player-h, 88px);
+  z-index: 520;
+  background: rgba(247, 244, 240, 0.98);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid var(--border-mid);
+  box-shadow: 0 -8px 36px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: slide-up 240ms var(--ease-out);
+}
+
+.int-player__overlay-inner {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: 280px 1fr 120px;
+  align-items: center;
+  gap: 24px;
+}
+
+.int-player--overlay .int-player__center {
+  max-width: 540px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.album-overlay__sheet--has-player {
+  margin-bottom: calc(var(--global-player-h, 88px) + 32px) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   VARIANT B: INLINE EDITORIAL CONSOLE (.int-player--inline)
+   Embedded in ProductDetailsPage above Tracklist
+   ───────────────────────────────────────────────────────── */
+.product-tracks__player-wrap {
+  margin-bottom: 24px;
+}
+
+.int-player--inline {
+  background: var(--ivory-warm);
+  border: 1px solid var(--border-mid);
+  border-radius: 4px;
+  padding: 16px 20px 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  animation: slide-up 260ms var(--ease-out);
+}
+
+.int-player--inline .int-player__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.int-player__header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.int-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: var(--text-primary);
+  color: var(--ivory);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.int-badge-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.int-time-pill {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  background: var(--ivory-mid);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.int-player--inline .int-player__body {
+  display: grid;
+  grid-template-columns: 240px 1fr 100px;
+  align-items: center;
+  gap: 20px;
+}
+
+.int-player--inline .int-player__center {
+  width: 100%;
+}
+
+/* ── Active Tracklist Header Pills & Buttons ── */
+.tracklist-head__active-pill,
+.product-tracks__active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--ivory-mid);
+  border: 1px solid var(--border-mid);
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+
+.tracklist-head__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.product-tracks__header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.product-tracks__header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.product-tracks__playall-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 4px 12px;
+}
+
+.product-tracks__playall-btn svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* ── Responsive rules for Integrated Player ── */
+@media (max-width: 768px) {
+  .int-player__overlay-inner {
+    grid-template-columns: 1fr auto;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .int-player--overlay .int-player__track {
+    display: none;
+  }
+  .int-player--overlay .int-player__right {
+    display: none;
+  }
+  .int-player--inline .int-player__body {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .int-player--inline .int-player__right {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .int-player--overlay {
+    height: 68px;
+  }
+  .int-player--overlay .int-player__seek-row {
+    display: none;
+  }
+  .int-player--inline {
+    padding: 12px 14px;
+  }
+}
+
+/* ================================================================
    RECORDS PAGE
    ================================================================ */
 .records-page {

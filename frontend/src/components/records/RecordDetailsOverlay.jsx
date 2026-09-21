@@ -3,6 +3,7 @@ import { useAudio } from '../../context/AudioContext';
 import {
   IconPlay, IconPause, IconShuffle, IconPlayCircle, formatTime,
 } from '../shared/Icons';
+import IntegratedPlayer from '../shared/IntegratedPlayer';
 
 /* ── Vinyl SVG (minimal, monochrome) ── */
 function VinylDisc() {
@@ -136,7 +137,7 @@ export default function RecordDetailsOverlay({ record, onClose }) {
       />
 
       {/* Sheet */}
-      <div className="album-overlay__sheet">
+      <div className={`album-overlay__sheet${state.currentTrack ? ' album-overlay__sheet--has-player' : ''}`}>
         {/* Close */}
         <button className="album-overlay__close" onClick={onClose} aria-label="Close album">
           ×
@@ -244,6 +245,12 @@ export default function RecordDetailsOverlay({ record, onClose }) {
             {/* Tracklist header */}
             <div className="tracklist-head">
               <span className="tracklist-head__label">TRACKLIST</span>
+              {isRecordActive && (
+                <span className="tracklist-head__active-pill">
+                  <span className="tracklist-head__pulse" />
+                  {isRecordPlaying ? 'NOW PLAYING' : 'PAUSED'}
+                </span>
+              )}
               <span className="tracklist-head__count">
                 {totalTracks} {totalTracks === 1 ? 'TRACK' : 'TRACKS'}
               </span>
@@ -340,6 +347,11 @@ export default function RecordDetailsOverlay({ record, onClose }) {
           </aside>
         </section>
       </div>
+
+      {/* Integrated Record Player Bar */}
+      {state.currentTrack && (
+        <IntegratedPlayer variant="overlay" subtitle={record.title} />
+      )}
     </div>
   );
 }
