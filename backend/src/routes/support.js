@@ -10,9 +10,24 @@ const { v4: uuid } = require('uuid');
 const { pool }     = require('../db');
 const { authenticate } = require('../middleware/auth');
 const {
+  getSmtpConfig,
   sendSupportNotificationToTeam,
   sendSupportAcknowledgementToUser,
 } = require('../services/emailService');
+
+/* ── GET /api/support/config — public: get dynamic support contact config from env ── */
+router.get('/config', (_req, res) => {
+  try {
+    const config = getSmtpConfig();
+    res.json({
+      supportEmail: config.supportEmail,
+      fromEmail: config.fromEmail,
+      fromName: config.fromName,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to retrieve support configuration.' });
+  }
+});
 
 /* ── POST /api/support — public ── */
 router.post('/', async (req, res) => {

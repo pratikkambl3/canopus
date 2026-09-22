@@ -21,6 +21,19 @@ async function handleResponse(res) {
 }
 
 /**
+ * Public: fetch dynamic support & email configuration from backend env
+ */
+export async function getSupportConfig() {
+  try {
+    const res = await fetch(`${API_BASE}/support/config`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Submit customer support inquiry
  */
 export async function submitSupportQuery(data) {

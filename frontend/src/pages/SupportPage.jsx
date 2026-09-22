@@ -3,11 +3,21 @@
    Editorial customer inquiry & assistance desk.
    ================================================================ */
 
-import { useState } from 'react';
-import { submitSupportQuery } from '../services/supportService';
+import { useState, useEffect } from 'react';
+import { submitSupportQuery, getSupportConfig } from '../services/supportService';
 
 export default function SupportPage() {
-  const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL || 'mr.canopus111@gmail.com';
+  const [supportEmail, setSupportEmail] = useState(
+    import.meta.env.VITE_SUPPORT_EMAIL || 'mr.canopus111@gmail.com'
+  );
+
+  useEffect(() => {
+    getSupportConfig().then(cfg => {
+      if (cfg?.supportEmail) {
+        setSupportEmail(cfg.supportEmail);
+      }
+    });
+  }, []);
   const [formData, setFormData] = useState({
     name: '',
     email: '',

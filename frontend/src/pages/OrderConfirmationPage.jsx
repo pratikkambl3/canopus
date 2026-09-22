@@ -6,12 +6,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
 import { getOrder } from '../services/storeService';
+import { getSupportConfig } from '../services/supportService';
 import { IconCheck } from '../components/shared/Icons';
 
 export default function OrderConfirmationPage() {
   const { orderId } = useParams();
   const location = useLocation();
-  const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL || 'mr.canopus111@gmail.com';
+  const [supportEmail, setSupportEmail] = useState(
+    import.meta.env.VITE_SUPPORT_EMAIL || 'mr.canopus111@gmail.com'
+  );
 
   const [order, setOrder] = useState(location.state?.order || null);
   const [loading, setLoading] = useState(!order);
@@ -39,6 +42,9 @@ export default function OrderConfirmationPage() {
   useEffect(() => {
     window.scrollTo(0, 0);
     fetchStatus();
+    getSupportConfig().then(cfg => {
+      if (cfg?.supportEmail) setSupportEmail(cfg.supportEmail);
+    });
     // Poll status every 15 seconds in case admin approves while user is on page
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
