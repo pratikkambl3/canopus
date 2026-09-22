@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { submitSupportQuery } from '../services/supportService';
 
 export default function SupportPage() {
+  const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL || 'mr.canopus111@gmail.com';
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -85,7 +86,7 @@ export default function SupportPage() {
             <dl className="support-info-panel__list">
               <div className="support-info-item">
                 <dt>General & Orders</dt>
-                <dd><a href="mailto:mr.canopus111@gmail.com">mr.canopus111@gmail.com</a></dd>
+                <dd><a href={`mailto:${supportEmail}`}>{supportEmail}</a></dd>
               </div>
 
               <div className="support-info-item">

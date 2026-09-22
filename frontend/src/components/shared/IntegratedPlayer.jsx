@@ -157,12 +157,9 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
     volume, isMuted, shuffleEnabled,
   } = state;
 
-  const topBarRef = useRef(null);
-
   if (!currentTrack) return null;
 
   const artworkSrc = currentTrack.artworkUrl || currentTrack.artwork || null;
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const metaParts = [
     currentTrack.artist || 'CANOPUS',
@@ -184,15 +181,6 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
     actions.seek(Math.max(0, currentTime - 10));
   };
 
-  /* Interactive Top Bar scrub */
-  const handleTopClick = (e) => {
-    if (!duration || !topBarRef.current) return;
-    const rect = topBarRef.current.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    actions.seek(ratio * duration);
-  };
-
   /* ─────────────────────────────────────────────────────────
      VARIANT A: 'inline' (embedded inside ProductDetailsPage)
      ───────────────────────────────────────────────────────── */
@@ -203,20 +191,6 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
         role="region"
         aria-label="Integrated Player Console"
       >
-        {/* Top Hairline Track Progress (interactive) */}
-        <div
-          ref={topBarRef}
-          className="int-player__hairline"
-          onClick={handleTopClick}
-          onTouchStart={handleTopClick}
-          role="slider"
-          aria-label="Seek track"
-          aria-valuemin={0}
-          aria-valuemax={Math.floor(duration) || 0}
-          aria-valuenow={Math.floor(currentTime) || 0}
-        >
-          <div className="int-player__hairline-fill" style={{ width: `${pct}%` }} />
-        </div>
 
         {/* Card Header */}
         <div className="int-player__header">
@@ -360,20 +334,6 @@ function IntegratedPlayerComponent({ variant = 'overlay', subtitle = null }) {
       role="region"
       aria-label="Record Player Console"
     >
-      {/* Top Hairline Progress (interactive) */}
-      <div
-        ref={topBarRef}
-        className="int-player__hairline"
-        onClick={handleTopClick}
-        onTouchStart={handleTopClick}
-        role="slider"
-        aria-label="Seek track"
-        aria-valuemin={0}
-        aria-valuemax={Math.floor(duration) || 0}
-        aria-valuenow={Math.floor(currentTime) || 0}
-      >
-        <div className="int-player__hairline-fill" style={{ width: `${pct}%` }} />
-      </div>
 
       <div className="int-player__overlay-inner">
         {/* Left / Row 2 Left: Artwork + Track details */}

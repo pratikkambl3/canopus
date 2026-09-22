@@ -11,6 +11,7 @@ import { IconCheck } from '../components/shared/Icons';
 export default function OrderConfirmationPage() {
   const { orderId } = useParams();
   const location = useLocation();
+  const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL || 'mr.canopus111@gmail.com';
 
   const [order, setOrder] = useState(location.state?.order || null);
   const [loading, setLoading] = useState(!order);
@@ -183,7 +184,7 @@ export default function OrderConfirmationPage() {
             </p>
           ) : isRejected ? (
             <p>
-              If your payment was debited from your account, please reach out to our team at <strong>mr.canopus111@gmail.com</strong> with your transaction receipt.
+              If your payment was debited from your account, please reach out to our team at <strong>{supportEmail}</strong> with your transaction receipt.
             </p>
           ) : (
             <>

@@ -2,7 +2,7 @@
    CANOPUS — Express Server Entry Point
    ================================================================ */
 
-require('dotenv').config();
+require('./utils/loadEnv');
 
 const express = require('express');
 const cors    = require('cors');

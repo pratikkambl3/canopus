@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="vinylGrad" cx="50%" cy="50%" r="50%" fx="35%" fy="35%">
+      <stop offset="0%" stop-color="#242424" />
+      <stop offset="65%" stop-color="#141414" />
+      <stop offset="100%" stop-color="#0a0a0a" />
+    </radialGradient>
+    <linearGradient id="goldRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2BF65" />
+      <stop offset="50%" stop-color="#C5A059" />
+      <stop offset="100%" stop-color="#9C7934" />
+    </linearGradient>
+  </defs>
+
+  <!-- Contrast rim for dark/light browser chrome -->
+  <circle cx="32" cy="32" r="31" fill="none" stroke="#333333" stroke-width="0.8" />
+
+  <!-- Main vinyl record disc -->
+  <circle cx="32" cy="32" r="30" fill="url(#vinylGrad)" />
+
+  <!-- Micro sound grooves -->
+  <circle cx="32" cy="32" r="26.5" fill="none" stroke="#252525" stroke-width="0.65" />
+  <circle cx="32" cy="32" r="24.2" fill="none" stroke="#1d1d1d" stroke-width="0.5" />
+  <circle cx="32" cy="32" r="21.8" fill="none" stroke="#252525" stroke-width="0.65" />
+  <circle cx="32" cy="32" r="19.4" fill="none" stroke="#1d1d1d" stroke-width="0.5" />
+  <circle cx="32" cy="32" r="17.0" fill="none" stroke="#252525" stroke-width="0.65" />
+
+  <!-- Gold metallic accent ring -->
+  <circle cx="32" cy="32" r="14.8" fill="none" stroke="url(#goldRing)" stroke-width="0.9" />
+
+  <!-- Warm Ivory center label -->
+  <circle cx="32" cy="32" r="14.0" fill="#F7F4F0" />
+  <circle cx="32" cy="32" r="13.0" fill="none" stroke="#E8E2DA" stroke-width="0.5" stroke-dasharray="1.5,1.5" />
+
+  <!-- CANOPUS Serif "C" Monogram -->
+  <path d="M 37.5 25.6 C 36.8 24.3 35.0 23.2 32.0 23.2 C 26.2 23.2 22.8 27.2 22.8 32.0 C 22.8 36.8 26.2 40.8 32.0 40.8 C 35.4 40.8 37.2 39.4 38.0 38.0 L 36.1 37.0 C 35.4 38.0 34.0 39.0 32.0 39.0 C 27.4 39.0 25.1 35.8 25.1 32.0 C 25.1 28.2 27.4 25.0 32.0 25.0 C 34.0 25.0 35.4 25.9 36.0 26.8 Z" fill="#141414" />
+  <!-- Upper serif terminal dot -->
+  <circle cx="37.4" cy="26.0" r="0.9" fill="#141414" />
+
+  <!-- Celestial Canopus Star (Gold Sparkle) -->
+  <path d="M 40.5 17.5 Q 40.5 21.0 37.0 21.0 Q 40.5 21.0 40.5 24.5 Q 40.5 21.0 44.0 21.0 Q 40.5 21.0 40.5 17.5 Z" fill="url(#goldRing)" />
+</svg>

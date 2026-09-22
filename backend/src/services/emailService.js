@@ -5,38 +5,119 @@
    Gracefully falls back to simulated console logging if SMTP is unconfigured.
    ================================================================ */
 
-const nodemailer = require('nodemailer');
+let nodemailer = null;
+try {
+  nodemailer = require('nodemailer');
+} catch {
+  // Available in container environment
+}
+const { loadEnv } = require('../utils/loadEnv');
 
-const SMTP_HOST = process.env.SMTP_HOST || '';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASSWORD = process.env.SMTP_PASSWORD || '';
-const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || 'mr.canopus111@gmail.com';
-const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'CANOPUS Records';
-const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+// Ensure environment variables are loaded
+loadEnv();
 
-let transporter = null;
+let currentTransporter = null;
+let currentConfigSignature = null;
+
+function extractEmailAndName(fromString) {
+  if (!fromString) return { name: '', email: '' };
+  const match = fromString.match(/^(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)$/);
+  if (match) {
+    return { name: (match[1] || '').trim(), email: (match[2] || '').trim() };
+  }
+  return { name: '', email: fromString.trim() };
+}
+
+function getSmtpConfig() {
+  loadEnv();
+
+  const host = (process.env.SMTP_HOST || process.env.MAIL_HOST || '').trim();
+  const port = parseInt(process.env.SMTP_PORT || process.env.MAIL_PORT || '587', 10);
+
+  const secureEnv = (process.env.SMTP_SECURE || process.env.MAIL_SECURE || '').trim().toLowerCase();
+  const secure = secureEnv === 'true' || secureEnv === '1' || port === 465;
+
+  const user = (process.env.SMTP_USER || process.env.MAIL_USER || process.env.MAIL_USERNAME || '').trim();
+  const pass = (process.env.SMTP_PASSWORD || process.env.SMTP_PASS || process.env.MAIL_PASSWORD || process.env.MAIL_PASS || '').trim();
+
+  const fromRaw = (process.env.SMTP_FROM || process.env.MAIL_FROM || '').trim();
+  const parsedFrom = extractEmailAndName(fromRaw);
+
+  const fromEmail = (
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.MAIL_FROM_EMAIL ||
+    parsedFrom.email ||
+    process.env.SUPPORT_EMAIL ||
+    user ||
+    'mr.canopus111@gmail.com'
+  ).trim();
+
+  const fromName = (
+    process.env.SMTP_FROM_NAME ||
+    process.env.MAIL_FROM_NAME ||
+    parsedFrom.name ||
+    'CANOPUS Records'
+  ).trim();
+
+  const supportEmail = (
+    process.env.SUPPORT_EMAIL ||
+    process.env.CONTACT_EMAIL ||
+    fromEmail ||
+    'mr.canopus111@gmail.com'
+  ).trim();
+
+  const appUrl = (
+    process.env.APP_URL ||
+    process.env.PUBLIC_URL ||
+    'http://localhost:3000'
+  ).trim();
+
+  return {
+    host,
+    port,
+    secure,
+    user,
+    pass,
+    fromEmail,
+    fromName,
+    supportEmail,
+    appUrl,
+  };
+}
 
 function getTransporter() {
-  if (!SMTP_HOST) return null;
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
-      auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASSWORD } : undefined,
-    });
+  const config = getSmtpConfig();
+  if (!config.host || !nodemailer) return null;
+
+  const signature = `${config.host}:${config.port}:${config.secure}:${config.user}:${config.pass}`;
+  if (!currentTransporter || currentConfigSignature !== signature) {
+    const transportOptions = {
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+    };
+
+    if (config.user && config.pass) {
+      transportOptions.auth = {
+        user: config.user,
+        pass: config.pass,
+      };
+    }
+
+    currentTransporter = nodemailer.createTransport(transportOptions);
+    currentConfigSignature = signature;
+    console.log(`[EmailService] Dynamic SMTP transport configured: ${config.host}:${config.port} (secure: ${config.secure}, user: ${config.user || 'none'})`);
   }
-  return transporter;
+  return currentTransporter;
 }
 
 /**
  * Sends an email or logs simulated output if SMTP is not configured.
  */
 async function sendMail({ to, subject, text, html }) {
+  const config = getSmtpConfig();
   const mailer = getTransporter();
-  const from = `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`;
+  const from = `"${config.fromName}" <${config.fromEmail}>`;
 
   if (!mailer) {
     console.log('\n────────────────────────────────────────────────────────');
@@ -137,7 +218,8 @@ Timeless Music. Never Gets Old.
  * Payment Approved & Download Links Email
  */
 async function sendPaymentApprovedEmail(order, itemsWithTokens = [], reqBaseUrl = null) {
-  const base = reqBaseUrl || process.env.APP_URL || process.env.PUBLIC_URL || 'http://localhost:3000';
+  const config = getSmtpConfig();
+  const base = reqBaseUrl || config.appUrl;
   const albumNames = itemsWithTokens.map(i => i.album_title_snapshot).join(', ');
   const subject = `Your CANOPUS Album Is Ready — Order #${order.order_number}`;
   const orderUrl = `${base}/order-confirmation/${order.id}`;
@@ -240,6 +322,8 @@ Timeless Music. Never Gets Old.
  * Payment Rejected Email
  */
 async function sendPaymentRejectedEmail(order, reason = '') {
+  const config = getSmtpConfig();
+  const supportEmail = config.supportEmail;
   const subject = `Regarding Your CANOPUS Order #${order.order_number}`;
   const text = `
 Hello ${order.customer_name},
@@ -249,7 +333,7 @@ Thank you for your order at CANOPUS (Order #${order.order_number}).
 We were unable to verify your payment reference / UTR number (${order.payment_reference || 'N/A'}).
 ${reason ? `Reason: ${reason}\n` : ''}
 
-If this was an error, please reach out to us at ${process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com'} with a screenshot of your payment confirmation and your order number so we can verify it promptly.
+If this was an error, please reach out to us at ${supportEmail} with a screenshot of your payment confirmation and your order number so we can verify it promptly.
 
 CANOPUS
 Timeless Music. Never Gets Old.
@@ -278,7 +362,7 @@ Timeless Music. Never Gets Old.
     <p>Hello ${order.customer_name},</p>
     <p>We reviewed Order <strong>#${order.order_number}</strong>, but our team was unable to confirm the payment reference / UTR (<code>${order.payment_reference || 'N/A'}</code>) in our records.</p>
     ${reason ? `<p style="background: #F7F4F0; padding: 12px; font-size: 13px;"><strong>Note:</strong> ${reason}</p>` : ''}
-    <p>If payment was already deducted from your account, please reply to this email or write to <a href="mailto:${process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com'}">${process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com'}</a> with your transaction details or bank statement so we can assist you and release your digital download.</p>
+    <p>If payment was already deducted from your account, please reply to this email or write to <a href="mailto:${supportEmail}">${supportEmail}</a> with your transaction details or bank statement so we can assist you and release your digital download.</p>
     <div class="footer">
       CANOPUS · Timeless Music. Never Gets Old.
     </div>
@@ -294,7 +378,8 @@ Timeless Music. Never Gets Old.
  * Support Notification to Support Team / Admin
  */
 async function sendSupportNotificationToTeam(query) {
-  const supportDest = process.env.SUPPORT_EMAIL || 'mr.canopus111@gmail.com';
+  const config = getSmtpConfig();
+  const supportDest = config.supportEmail;
   const subject = `[Support Query] ${query.subject} — from ${query.name}`;
 
   const text = `
@@ -410,6 +495,8 @@ Timeless Music. Never Gets Old.
 }
 
 module.exports = {
+  getSmtpConfig,
+  getTransporter,
   sendOrderConfirmation,
   sendPaymentApprovedEmail,
   sendPaymentRejectedEmail,
