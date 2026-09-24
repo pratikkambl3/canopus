@@ -8,8 +8,9 @@ import OnAirBadge from '../components/radio/OnAirBadge';
 
 export default function RadioPage() {
   const { state, actions } = useAudio();
-  const { isPlaying, liveRadioEnabled, tracks, currentTrackId } = state;
+  const { isPlaying, liveRadioEnabled, tracks, currentTrackId, currentTrack } = state;
   const { characterUrl, setCharacterUrl } = useCharacterImage('home');
+  const hasActivePlayer = !!(currentTrack || currentTrackId);
 
   // Load all tracks from all records into radio pool
   useEffect(() => {
@@ -31,7 +32,143 @@ export default function RadioPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <main className="radio-page page">
+    <main className={`radio-page page radio-page--fit ${hasActivePlayer ? 'radio-page--has-player' : ''}`}>
+      <style>{`
+        @media (min-width: 901px) {
+          .radio-page.radio-page--fit {
+            height: calc(100vh - var(--header-h));
+            min-height: calc(100vh - var(--header-h));
+            max-height: calc(100vh - var(--header-h));
+            padding-top: 0;
+            margin-top: var(--header-h);
+            display: grid;
+            grid-template-columns: 38% 1fr;
+            align-items: stretch;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-sizing: border-box;
+          }
+
+          .radio-page.radio-page--fit.radio-page--has-player,
+          body:has(.global-player) .radio-page.radio-page--fit {
+            height: calc(100vh - var(--header-h) - var(--global-player-h, 88px));
+            min-height: calc(100vh - var(--header-h) - var(--global-player-h, 88px));
+            max-height: calc(100vh - var(--header-h) - var(--global-player-h, 88px));
+          }
+
+          .radio-page.radio-page--fit .radio-page__character-col {
+            position: relative;
+            height: 100%;
+            min-height: 0;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-start;
+            overflow: hidden;
+          }
+
+          .radio-page.radio-page--fit .radio-page__character-img {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: bottom left;
+          }
+
+          .radio-page.radio-page--fit .radio-page__content-col {
+            min-height: 0;
+            height: 100%;
+            justify-content: center;
+            padding: clamp(10px, 1.8vh, 28px) clamp(24px, 3.5vw, 56px);
+            overflow: visible;
+          }
+
+          .radio-page.radio-page--fit .radio-hero__eyebrow {
+            font-size: 10px;
+            margin-bottom: clamp(4px, 0.8vh, 10px);
+            letter-spacing: 0.3em;
+          }
+
+          .radio-page.radio-page--fit .radio-hero__title {
+            font-size: clamp(28px, min(4.2vw, 5.2vh), 60px);
+            line-height: 1.05;
+            margin-bottom: clamp(4px, 0.8vh, 12px);
+          }
+
+          .radio-page.radio-page--fit .radio-hero__rule {
+            margin: clamp(4px, 0.8vh, 12px) 0;
+            width: 40px;
+          }
+
+          .radio-page.radio-page--fit .radio-hero__desc {
+            font-size: clamp(11.5px, 0.95vw, 13px);
+            line-height: 1.45;
+            max-width: 420px;
+            margin-bottom: clamp(6px, 1.2vh, 16px);
+          }
+
+          .radio-page.radio-page--fit .on-air-badge {
+            margin-bottom: clamp(6px, 1.2vh, 16px);
+          }
+
+          .radio-page.radio-page--fit .player-card {
+            padding: clamp(10px, 1.4vh, 18px) clamp(14px, 1.8vw, 22px);
+            margin-bottom: 0;
+          }
+
+          .radio-page.radio-page--fit .player-card__label {
+            font-size: 8.5px;
+            margin-bottom: clamp(4px, 0.8vh, 10px);
+            letter-spacing: 0.28em;
+          }
+
+          .radio-page.radio-page--fit .player-card__top {
+            gap: clamp(10px, 1.2vw, 16px);
+            margin-bottom: clamp(6px, 1vh, 12px);
+          }
+
+          .radio-page.radio-page--fit .player-card__artwork-wrap {
+            width: clamp(44px, 5.2vh, 64px);
+            height: clamp(44px, 5.2vh, 64px);
+          }
+
+          .radio-page.radio-page--fit .player-card__track-title {
+            font-size: clamp(13px, 1.15vw, 15px);
+            margin-bottom: 2px;
+          }
+
+          .radio-page.radio-page--fit .player-card__version {
+            font-size: 10.5px;
+          }
+
+          .radio-page.radio-page--fit .player-card__meta-tag {
+            font-size: 9.5px;
+            padding: 2px 7px;
+          }
+
+          .radio-page.radio-page--fit .player-card__progress-section {
+            margin-bottom: clamp(4px, 0.8vh, 8px);
+          }
+
+          .radio-page.radio-page--fit .player-card__controls {
+            margin-top: clamp(2px, 0.6vh, 8px);
+          }
+
+          .radio-page.radio-page--fit .hero-actions {
+            margin-top: clamp(8px, 1.4vh, 18px);
+            gap: 10px;
+          }
+
+          .radio-page.radio-page--fit .hero-actions .btn-primary,
+          .radio-page.radio-page--fit .hero-actions .btn-secondary {
+            padding: clamp(8px, 1.1vh, 12px) clamp(18px, 1.8vw, 28px);
+            font-size: 10.5px;
+            letter-spacing: 0.2em;
+          }
+        }
+      `}</style>
+
       {/* Left — Character */}
       <div className="radio-page__character-col">
         <img
