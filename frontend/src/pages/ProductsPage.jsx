@@ -1,4 +1,4 @@
-﻿/* ================================================================
+/* ================================================================
    CANOPUS — Products Store Page
    Minimal, luxury editorial digital album store.
    ================================================================ */
@@ -153,6 +153,13 @@ export default function ProductsPage() {
                       </p>
                     )}
 
+                    {/* Countdown timer strip */}
+                    {isOnSale && product.saleEndsAt && (
+                      <div className="product-card__countdown-bar">
+                        <SaleCountdown endsAt={product.saleEndsAt} className="product-card__countdown" />
+                      </div>
+                    )}
+
                     <div className="product-card__footer">
                       <div className="product-card__price-wrap">
                         {isOnSale ? (
@@ -170,11 +177,6 @@ export default function ProductsPage() {
                           </>
                         )}
                       </div>
-
-                      {/* Countdown timer */}
-                      {isOnSale && product.saleEndsAt && (
-                        <SaleCountdown endsAt={product.saleEndsAt} className="product-card__countdown" />
-                      )}
 
                       <div className="product-card__actions">
                         <button

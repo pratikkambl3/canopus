@@ -45,7 +45,9 @@ export default function SaleCountdown({ endsAt, onExpired, className = '' }) {
 
   return (
     <div className={`sale-countdown ${className}`}>
-      <span className="sale-countdown__label">Ends in</span>
+      <span className="sale-countdown__label">
+        <span className="sale-countdown__icon" aria-hidden="true">⏱</span> Ends in
+      </span>
       <div className="sale-countdown__clock">
         {timeLeft.days > 0 && (
           <>

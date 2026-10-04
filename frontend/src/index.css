@@ -4192,7 +4192,7 @@ img {
 .product-card__badge {
   position: absolute;
   top: 12px;
-  left: 12px;
+  right: 12px;
   padding: 4px 8px;
   background: rgba(26, 26, 26, 0.78);
   backdrop-filter: blur(4px);
@@ -4201,7 +4201,8 @@ img {
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  border-radius: 1px;
+  border-radius: 2px;
+  z-index: 2;
 }
 
 .product-card__info {
@@ -4301,6 +4302,7 @@ img {
 }
 
 /* ── Product Card Sale Styles ── */
+/* ── Product Card Sale Styles ── */
 .product-card--on-sale {
   position: relative;
 }
@@ -4331,7 +4333,7 @@ img {
 .product-card__sale-prices {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
 }
 
 .product-card__price-original {
@@ -4347,8 +4349,27 @@ img {
   color: #d95a00;
 }
 
-.product-card__countdown {
-  margin-top: 6px;
+/* ── Dedicated Countdown Bar above Footer ── */
+.product-card__countdown-bar {
+  margin-top: auto;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.product-card--on-sale .product-card__footer {
+  margin-top: 0;
+}
+
+.product-card__countdown-bar .sale-countdown {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  background: rgba(224, 92, 0, 0.07);
+  border: 1px solid rgba(224, 92, 0, 0.22);
+  border-radius: 4px;
 }
 
 /* ── SaleCountdown Component ── */
@@ -4358,11 +4379,15 @@ img {
   gap: 8px;
   background: rgba(224, 92, 0, 0.08);
   border: 1px solid rgba(224, 92, 0, 0.22);
-  border-radius: 6px;
-  padding: 5px 10px;
+  border-radius: 4px;
+  padding: 5px 8px;
+  box-sizing: border-box;
 }
 
 .sale-countdown__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -4371,47 +4396,52 @@ img {
   white-space: nowrap;
 }
 
+.sale-countdown__icon {
+  font-size: 11px;
+}
+
 .sale-countdown__clock {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 2px;
+  white-space: nowrap;
 }
 
 .sale-countdown__unit {
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
   gap: 1px;
 }
 
 .sale-countdown__digit {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: #c45500;
-  min-width: 20px;
+  min-width: 16px;
   text-align: center;
 }
 
 .sale-countdown__suffix {
-  font-size: 8px;
+  font-size: 8.5px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: #c45500;
-  opacity: 0.7;
+  opacity: 0.8;
   margin-left: 1px;
 }
 
 .sale-countdown__colon {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: #c45500;
-  opacity: 0.5;
-  margin: 0 2px;
+  opacity: 0.45;
+  margin: 0 1px;
   animation: countdown-blink 1s step-start infinite;
 }
 
 @keyframes countdown-blink {
-  0%, 100% { opacity: 0.5; }
+  0%, 100% { opacity: 0.45; }
   50%       { opacity: 0.15; }
 }
 
