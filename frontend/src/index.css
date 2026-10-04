@@ -4300,6 +4300,181 @@ img {
   text-decoration: none;
 }
 
+/* ── Product Card Sale Styles ── */
+.product-card--on-sale {
+  position: relative;
+}
+
+.product-card__sale-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  background: linear-gradient(135deg, #e05c00, #ff8c00);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(224,92,0,0.35);
+  pointer-events: none;
+  animation: sale-badge-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sale-badge-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(224,92,0,0.35); }
+  50%       { box-shadow: 0 4px 18px rgba(224,92,0,0.55); }
+}
+
+.product-card__sale-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.product-card__price-original {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.product-card__price--sale {
+  font-size: 17px;
+  font-weight: 700;
+  color: #d95a00;
+}
+
+.product-card__countdown {
+  margin-top: 6px;
+}
+
+/* ── SaleCountdown Component ── */
+.sale-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(224, 92, 0, 0.08);
+  border: 1px solid rgba(224, 92, 0, 0.22);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.sale-countdown__label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c45500;
+  white-space: nowrap;
+}
+
+.sale-countdown__clock {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sale-countdown__unit {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.sale-countdown__digit {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #c45500;
+  min-width: 20px;
+  text-align: center;
+}
+
+.sale-countdown__suffix {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #c45500;
+  opacity: 0.7;
+  margin-left: 1px;
+}
+
+.sale-countdown__colon {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c45500;
+  opacity: 0.5;
+  margin: 0 2px;
+  animation: countdown-blink 1s step-start infinite;
+}
+
+@keyframes countdown-blink {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 0.15; }
+}
+
+/* ── Product Hero Sale Banner (Detail Page) ── */
+.product-hero__sale-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 14px;
+  background: linear-gradient(90deg, rgba(224,92,0,0.1) 0%, rgba(255,140,0,0.06) 100%);
+  border: 1px solid rgba(224, 92, 0, 0.25);
+  border-radius: 6px;
+}
+
+.product-hero__sale-badge {
+  background: linear-gradient(135deg, #e05c00, #ff8c00);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(224,92,0,0.3);
+  animation: sale-badge-pulse 2.4s ease-in-out infinite;
+}
+
+.product-hero__sale-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c45500;
+  letter-spacing: 0.05em;
+}
+
+.product-hero__countdown {
+  margin-left: auto;
+}
+
+.product-hero__sale-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.product-hero__price-original {
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.product-hero__price--sale {
+  font-size: 30px;
+  font-weight: 700;
+  color: #d95a00;
+  letter-spacing: -0.02em;
+}
+
+
+
 /* ================================================================
    PRODUCT DETAILS PAGE
    ================================================================ */

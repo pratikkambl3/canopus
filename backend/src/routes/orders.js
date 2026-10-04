@@ -155,7 +155,7 @@ router.post('/', async (req, res) => {
     
     // Fetch product rows from DB to calculate trusted server-side total
     const { rows: products } = await client.query(
-      `SELECT id, title, product_enabled, product_price, digital_file_path, digital_file_id 
+      `SELECT id, title, product_enabled, product_price, sale_enabled, sale_discount_percent, sale_ends_at, digital_file_path, digital_file_id 
        FROM records 
        WHERE id = ANY($1::text[])`,
       [uniqueAlbumIds]
@@ -179,13 +179,19 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: `Digital file is missing for album "${p.title}".` });
       }
 
-      const price = Number(p.product_price || 0);
-      calculatedTotal += price;
+      const basePrice   = Number(p.product_price || 0);
+      const saleEnabled = Boolean(p.sale_enabled);
+      const discountPct = Math.min(100, Math.max(0, Number(p.sale_discount_percent || 0)));
+      const saleEndsAt  = p.sale_ends_at ? new Date(p.sale_ends_at) : null;
+      const saleActive  = saleEnabled && discountPct > 0 && (!saleEndsAt || saleEndsAt > new Date());
+      const effectivePrice = saleActive ? Math.round(basePrice * (1 - discountPct / 100) * 100) / 100 : basePrice;
+
+      calculatedTotal += effectivePrice;
 
       orderItemsToInsert.push({
         albumId: p.id,
         titleSnapshot: p.title,
-        priceSnapshot: price,
+        priceSnapshot: effectivePrice,
         digitalFileRef: p.digital_file_id || p.id,
       });
     }

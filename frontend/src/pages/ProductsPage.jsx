@@ -1,4 +1,4 @@
-/* ================================================================
+﻿/* ================================================================
    CANOPUS — Products Store Page
    Minimal, luxury editorial digital album store.
    ================================================================ */
@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { getProducts } from '../services/storeService';
 import { useCart } from '../context/CartContext';
 import { IconCheck, IconBag } from '../components/shared/Icons';
+import SaleCountdown from '../components/shared/SaleCountdown';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -70,7 +71,7 @@ export default function ProductsPage() {
           <input
             type="search"
             className="records-search"
-            placeholder="Search digital albums…"
+            placeholder="Search digital albums..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             aria-label="Search digital albums"
@@ -81,7 +82,7 @@ export default function ProductsPage() {
       {/* Grid */}
       <section className="products-grid-section" aria-label="Digital products catalog">
         {loading ? (
-          <p className="products-loading">Loading collection…</p>
+          <p className="products-loading">Loading collection...</p>
         ) : filtered.length === 0 ? (
           <div className="products-empty">
             <p className="products-empty__title">
@@ -98,12 +99,22 @@ export default function ProductsPage() {
         ) : (
           <div className="products-grid">
             {filtered.map(product => {
-              const inCart = isInCart(product.id);
-              const trackCount = product.trackCount || product.tracks?.length || 0;
+              const inCart      = isInCart(product.id);
+              const trackCount  = product.trackCount || product.tracks?.length || 0;
+              const isOnSale    = Boolean(product.isOnSale);
+              const discountPct = product.saleDiscountPercent ? Math.round(product.saleDiscountPercent) : 0;
 
               return (
-                <article key={product.id} className="product-card">
-                  {/* Artwork Container */}
+                <article key={product.id} className={`product-card${isOnSale ? ' product-card--on-sale' : ''}`}>
+
+                  {/* Sale badge */}
+                  {isOnSale && (
+                    <div className="product-card__sale-badge">
+                      {discountPct}% OFF
+                    </div>
+                  )}
+
+                  {/* Artwork */}
                   <Link to={`/products/${product.id}`} className="product-card__artwork-link" aria-label={`View ${product.title}`}>
                     <div className="product-card__artwork-wrap">
                       {product.artworkUrl ? (
@@ -115,7 +126,7 @@ export default function ProductsPage() {
                         />
                       ) : (
                         <div className="product-card__artwork product-card__artwork--placeholder">
-                          <span>♫</span>
+                          <span>&#9835;</span>
                         </div>
                       )}
                       <span className="product-card__badge">Digital Album</span>
@@ -133,7 +144,7 @@ export default function ProductsPage() {
                     <p className="product-card__meta">
                       {[product.genre, product.releaseYear, trackCount > 0 ? `${trackCount} tracks` : null]
                         .filter(Boolean)
-                        .join(' · ')}
+                        .join(' / ')}
                     </p>
 
                     {(product.description || product.productDescription) && (
@@ -144,9 +155,26 @@ export default function ProductsPage() {
 
                     <div className="product-card__footer">
                       <div className="product-card__price-wrap">
-                        <span className="product-card__price-label">Price</span>
-                        <span className="product-card__price">₹{product.price}</span>
+                        {isOnSale ? (
+                          <>
+                            <span className="product-card__price-label">Sale Price</span>
+                            <div className="product-card__sale-prices">
+                              <span className="product-card__price-original">&#8377;{product.originalPrice}</span>
+                              <span className="product-card__price product-card__price--sale">&#8377;{product.price}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="product-card__price-label">Price</span>
+                            <span className="product-card__price">&#8377;{product.price}</span>
+                          </>
+                        )}
                       </div>
+
+                      {/* Countdown timer */}
+                      {isOnSale && product.saleEndsAt && (
+                        <SaleCountdown endsAt={product.saleEndsAt} className="product-card__countdown" />
+                      )}
 
                       <div className="product-card__actions">
                         <button
@@ -186,4 +214,3 @@ export default function ProductsPage() {
     </main>
   );
 }
-

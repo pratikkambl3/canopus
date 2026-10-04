@@ -108,6 +108,14 @@ function rowToProduct(r, tracks = [], previewDuration = 30) {
   const previewTrackId = r.preview_track_id || (tracks.length > 0 ? tracks[0].id : null);
   const matchedTrack = tracks.find(t => t.id === previewTrackId) || tracks[0] || null;
 
+  // Sale price calculation
+  const basePrice     = Number(r.product_price || 0);
+  const saleEnabled   = Boolean(r.sale_enabled);
+  const discountPct   = Math.min(100, Math.max(0, Number(r.sale_discount_percent || 0)));
+  const saleEndsAt    = r.sale_ends_at ? new Date(r.sale_ends_at).toISOString() : null;
+  const saleActive    = saleEnabled && discountPct > 0 && (saleEndsAt === null || new Date(saleEndsAt) > new Date());
+  const salePrice     = saleActive ? Math.round(basePrice * (1 - discountPct / 100) * 100) / 100 : basePrice;
+
   return {
     id:                 r.id,
     title:              r.title,
@@ -122,8 +130,15 @@ function rowToProduct(r, tracks = [], previewDuration = 30) {
     isProductOnly:      Boolean(r.is_product_only),
     is_product_only:     Boolean(r.is_product_only),
     productEnabled:     Boolean(r.product_enabled),
-    price:              Number(r.product_price || 0),
+    price:              saleActive ? salePrice : basePrice,  // effective checkout price
+    originalPrice:      basePrice,
     productDescription: r.product_description || r.description || '',
+    // Sale fields
+    saleEnabled:        saleEnabled,
+    saleDiscountPercent: discountPct,
+    saleEndsAt:         saleEndsAt,
+    isOnSale:           saleActive,
+    salePrice:          saleActive ? salePrice : null,
     // Preview Configuration
     previewEnabled:     r.preview_enabled !== false,
     previewTrackId:     previewTrackId,
@@ -384,6 +399,9 @@ router.put('/:id', authenticate, async (req, res) => {
       previewStartTime,
       previewEndTime,
       previewDuration,
+      saleEnabled,
+      saleDiscountPercent,
+      saleEndsAt,
     } = req.body;
 
     const { rows: current } = await pool.query('SELECT * FROM records WHERE id = $1', [req.params.id]);
@@ -411,18 +429,26 @@ router.put('/:id', authenticate, async (req, res) => {
     const newPreviewEndTime = previewEndTime !== undefined ? Math.max(newPreviewStartTime + 1, Number(previewEndTime)) : Number(record.preview_end_time || 30);
     const newPreviewDuration = previewDuration !== undefined ? Math.max(1, Number(previewDuration)) : (newPreviewEndTime - newPreviewStartTime);
 
+    // Sale fields
+    const newSaleEnabled         = saleEnabled !== undefined ? Boolean(saleEnabled) : Boolean(record.sale_enabled);
+    const newSaleDiscountPercent = saleDiscountPercent !== undefined ? Math.min(100, Math.max(0, Number(saleDiscountPercent))) : Number(record.sale_discount_percent || 0);
+    const newSaleEndsAt          = saleEndsAt !== undefined ? (saleEndsAt || null) : record.sale_ends_at;
+
     const { rows: updated } = await pool.query(
       `UPDATE records
-       SET product_enabled     = $1,
-           product_price       = $2,
-           product_description = $3,
-           preview_enabled     = $4,
-           preview_track_id    = $5,
-           preview_start_time  = $6,
-           preview_end_time    = $7,
-           preview_duration    = $8,
-           product_updated_at  = NOW()
-       WHERE id = $9
+       SET product_enabled       = $1,
+           product_price         = $2,
+           product_description   = $3,
+           preview_enabled       = $4,
+           preview_track_id      = $5,
+           preview_start_time    = $6,
+           preview_end_time      = $7,
+           preview_duration      = $8,
+           sale_enabled          = $9,
+           sale_discount_percent = $10,
+           sale_ends_at          = $11,
+           product_updated_at    = NOW()
+       WHERE id = $12
        RETURNING *`,
       [
         wantsEnabled,
@@ -433,6 +459,9 @@ router.put('/:id', authenticate, async (req, res) => {
         newPreviewStartTime,
         newPreviewEndTime,
         newPreviewDuration,
+        newSaleEnabled,
+        newSaleDiscountPercent,
+        newSaleEndsAt,
         req.params.id
       ]
     );

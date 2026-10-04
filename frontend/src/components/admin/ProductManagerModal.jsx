@@ -10,8 +10,20 @@ import { IconCheck } from '../shared/Icons';
 
 export default function ProductManagerModal({ record, onClose, onUpdated }) {
   const [enabled, setEnabled]         = useState(Boolean(record.productEnabled ?? record.product_enabled));
-  const [price, setPrice]             = useState(Number(record.price ?? record.product_price ?? 0));
+  const [price, setPrice]             = useState(Number(record.originalPrice ?? record.product_price ?? record.price ?? 0));
   const [description, setDescription] = useState(record.productDescription ?? record.product_description ?? record.description ?? '');
+
+  // Sale state
+  const [saleEnabled, setSaleEnabled]             = useState(Boolean(record.saleEnabled ?? record.sale_enabled));
+  const [saleDiscountPercent, setSaleDiscountPct] = useState(Number(record.saleDiscountPercent ?? record.sale_discount_percent ?? 20));
+  const toLocalDatetimeStr = (isoStr) => {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    // Format: YYYY-MM-DDTHH:mm
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const [saleEndsAt, setSaleEndsAt] = useState((record.saleEndsAt || record.sale_ends_at) ? toLocalDatetimeStr(record.saleEndsAt || record.sale_ends_at) : '');
 
   // Digital file state
   const [digitalFile, setDigitalFile] = useState(record.digitalFile || {
@@ -201,6 +213,17 @@ export default function ProductManagerModal({ record, onClose, onUpdated }) {
       return;
     }
 
+    if (saleEnabled) {
+      if (!saleDiscountPercent || saleDiscountPercent <= 0 || saleDiscountPercent > 100) {
+        setError('Sale discount must be between 1% and 100%.');
+        return;
+      }
+      if (saleEndsAt && new Date(saleEndsAt) <= new Date()) {
+        setError('Sale end time must be in the future.');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       await updateProduct(record.id, {
@@ -212,6 +235,9 @@ export default function ProductManagerModal({ record, onClose, onUpdated }) {
         previewStartTime:   Number(previewStartTime),
         previewEndTime:     Number(previewEndTime),
         previewDuration:    previewDuration,
+        saleEnabled:        saleEnabled,
+        saleDiscountPercent: saleEnabled ? Number(saleDiscountPercent) : 0,
+        saleEndsAt:         saleEnabled && saleEndsAt ? new Date(saleEndsAt).toISOString() : null,
       });
       setSuccessMsg('Product settings saved successfully.');
       onUpdated && onUpdated();
@@ -260,7 +286,7 @@ export default function ProductManagerModal({ record, onClose, onUpdated }) {
 
           {/* Pricing */}
           <div className="form-group" style={{ marginTop: 20 }}>
-            <label className="form-label" htmlFor="productPrice">Price (₹ INR) *</label>
+            <label className="form-label" htmlFor="productPrice">Listing Price (₹ INR) *</label>
             <input
               id="productPrice"
               type="number"
@@ -271,7 +297,82 @@ export default function ProductManagerModal({ record, onClose, onUpdated }) {
               onChange={e => setPrice(e.target.value)}
               required
             />
-            <span className="form-hint">Displayed on the product card and checkout page.</span>
+            <span className="form-hint">Base listing price. If a sale is active, the discounted price is shown to customers and used at checkout.</span>
+          </div>
+
+          {/* ── Sale Configuration ── */}
+          <div className="admin-zip-box" style={{ marginTop: 20, border: saleEnabled ? '1px solid rgba(255,140,0,0.4)' : undefined, background: saleEnabled ? 'rgba(255,140,0,0.04)' : undefined }}>
+            <div className="admin-zip-box__header">
+              <div>
+                <h4 className="admin-zip-box__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>🏷️</span> Limited-Time Sale
+                  {saleEnabled && (
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#ff8c00', background: 'rgba(255,140,0,0.15)', padding: '2px 8px', borderRadius: 20 }}>ACTIVE</span>
+                  )}
+                </h4>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Put this product on sale with an optional countdown timer visible to customers.
+                </p>
+              </div>
+              <label className="switch" style={{ marginLeft: 'auto' }}>
+                <input
+                  type="checkbox"
+                  checked={saleEnabled}
+                  onChange={e => setSaleEnabled(e.target.checked)}
+                />
+                <span className="slider" />
+              </label>
+            </div>
+
+            {saleEnabled && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="saleDiscount">Discount (%)*</label>
+                    <input
+                      id="saleDiscount"
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      className="form-input"
+                      value={saleDiscountPercent}
+                      onChange={e => setSaleDiscountPct(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                      required
+                    />
+                    <span className="form-hint">
+                      ₹{price} → <strong>₹{Math.round(price * (1 - saleDiscountPercent / 100))}</strong> ({saleDiscountPercent}% off)
+                    </span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="saleEndsAt">Sale Ends At (optional)</label>
+                    <input
+                      id="saleEndsAt"
+                      type="datetime-local"
+                      className="form-input"
+                      value={saleEndsAt}
+                      onChange={e => setSaleEndsAt(e.target.value)}
+                    />
+                    <span className="form-hint">Leave blank for an indefinite sale (no countdown shown).</span>
+                  </div>
+                </div>
+
+                {saleEndsAt && (
+                  <div style={{
+                    marginTop: 10,
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    background: 'rgba(255,140,0,0.1)',
+                    border: '1px solid rgba(255,140,0,0.3)',
+                    fontSize: 12,
+                    color: 'var(--text-secondary)',
+                  }}>
+                    ⏱ Customers will see a live countdown timer until <strong>{new Date(saleEndsAt).toLocaleString()}</strong>. After the timer expires, the product reverts to the full listing price automatically.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Product Description */}

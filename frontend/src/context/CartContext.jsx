@@ -44,19 +44,26 @@ export function CartProvider({ children }) {
         const updated = prev.map(item => {
           const live = productMap.get(item.id);
           if (!live) return item;
-          const livePrice = Number(live.price ?? 0);
+          const livePrice         = Number(live.price ?? 0);
+          const liveOriginalPrice = Number(live.originalPrice ?? live.price ?? 0);
           if (
             item.price !== livePrice ||
+            item.originalPrice !== liveOriginalPrice ||
             item.title !== live.title ||
-            (live.artworkUrl && item.artworkUrl !== live.artworkUrl)
+            (live.artworkUrl && item.artworkUrl !== live.artworkUrl) ||
+            item.isOnSale !== Boolean(live.isOnSale)
           ) {
             hasChanges = true;
             return {
               ...item,
-              price: livePrice,
-              title: live.title || item.title,
-              artworkUrl: live.artworkUrl || item.artworkUrl,
-              artist: live.artist || item.artist,
+              price:              livePrice,
+              originalPrice:      liveOriginalPrice,
+              isOnSale:           Boolean(live.isOnSale),
+              saleDiscountPercent: live.saleDiscountPercent ?? 0,
+              saleEndsAt:         live.saleEndsAt ?? null,
+              title:              live.title || item.title,
+              artworkUrl:         live.artworkUrl || item.artworkUrl,
+              artist:             live.artist || item.artist,
             };
           }
           return item;
@@ -88,12 +95,16 @@ export function CartProvider({ children }) {
           item.id === product.id
             ? {
                 ...item,
-                title:      product.title,
-                artist:     product.artist || item.artist || '',
-                price:      Number(product.price ?? item.price ?? 0),
-                artworkUrl: product.artworkUrl || item.artworkUrl || null,
-                genre:      product.genre || item.genre || '',
-                trackCount: product.trackCount || (product.tracks ? product.tracks.length : item.trackCount || 0),
+                title:              product.title,
+                artist:             product.artist || item.artist || '',
+                price:              Number(product.price ?? item.price ?? 0),
+                originalPrice:      Number(product.originalPrice ?? product.price ?? item.originalPrice ?? 0),
+                isOnSale:           Boolean(product.isOnSale),
+                saleDiscountPercent: product.saleDiscountPercent ?? 0,
+                saleEndsAt:         product.saleEndsAt ?? null,
+                artworkUrl:         product.artworkUrl || item.artworkUrl || null,
+                genre:              product.genre || item.genre || '',
+                trackCount:         product.trackCount || (product.tracks ? product.tracks.length : item.trackCount || 0),
               }
             : item
         );
@@ -101,13 +112,17 @@ export function CartProvider({ children }) {
       return [
         ...prev,
         {
-          id:         product.id,
-          title:      product.title,
-          artist:     product.artist || '',
-          price:      Number(product.price ?? 0),
-          artworkUrl: product.artworkUrl || null,
-          genre:      product.genre || '',
-          trackCount: product.trackCount || (product.tracks ? product.tracks.length : 0),
+          id:                 product.id,
+          title:              product.title,
+          artist:             product.artist || '',
+          price:              Number(product.price ?? 0),
+          originalPrice:      Number(product.originalPrice ?? product.price ?? 0),
+          isOnSale:           Boolean(product.isOnSale),
+          saleDiscountPercent: product.saleDiscountPercent ?? 0,
+          saleEndsAt:         product.saleEndsAt ?? null,
+          artworkUrl:         product.artworkUrl || null,
+          genre:              product.genre || '',
+          trackCount:         product.trackCount || (product.tracks ? product.tracks.length : 0),
         }
       ];
     });
