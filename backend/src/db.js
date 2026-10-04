@@ -65,6 +65,9 @@ async function initDb() {
     ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_end_time INTEGER DEFAULT 30;
     ALTER TABLE records ADD COLUMN IF NOT EXISTS preview_duration INTEGER DEFAULT 30;
     ALTER TABLE records ADD COLUMN IF NOT EXISTS is_product_only BOOLEAN DEFAULT FALSE;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS sale_enabled BOOLEAN DEFAULT FALSE;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS sale_discount_percent NUMERIC(5,2) DEFAULT 0.00;
+    ALTER TABLE records ADD COLUMN IF NOT EXISTS sale_ends_at TIMESTAMPTZ DEFAULT NULL;
   `);
 
   // 2. Tracks table (Individual songs inside a record)

@@ -81,7 +81,19 @@ export default function CartDrawer() {
                     <h4 className="cart-item__title">{item.title}</h4>
                     {item.artist && <p className="cart-item__artist">{item.artist}</p>}
                     <p className="cart-item__format">Digital Album · ZIP Download</p>
-                    <span className="cart-item__price">₹{item.price}</span>
+                    <div className="cart-item__price-wrap" style={{ marginTop: 4 }}>
+                      {item.isOnSale ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ textDecoration: 'line-through', opacity: 0.5, fontSize: '0.85em' }}>₹{item.originalPrice}</span>
+                          <span className="cart-item__price" style={{ color: 'var(--accent, #e8a87c)' }}>₹{item.price}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#ff8c00', background: 'rgba(255,140,0,0.15)', padding: '1px 5px', borderRadius: 3 }}>
+                            {Math.round(item.saleDiscountPercent || 0)}% OFF
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="cart-item__price">₹{item.price}</span>
+                      )}
+                    </div>
                   </div>
 
                   <button

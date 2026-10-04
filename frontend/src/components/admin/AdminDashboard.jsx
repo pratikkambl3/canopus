@@ -94,7 +94,7 @@ export default function AdminDashboard({ records, onRecordsChange }) {
 
   const handleStartEditPrice = (record) => {
     setEditingPriceId(record.id);
-    setEditingPriceVal(String(record.price ?? record.product_price ?? 0));
+    setEditingPriceVal(String(record.originalPrice ?? record.product_price ?? record.price ?? 0));
   };
 
   const handleSaveQuickPrice = async (record) => {
@@ -358,7 +358,17 @@ export default function AdminDashboard({ records, onRecordsChange }) {
                             </div>
                           ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                              <span className="spec-val">₹{price}</span>
+                              {record.isOnSale ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <span style={{ textDecoration: 'line-through', opacity: 0.5, fontSize: 11 }}>₹{record.originalPrice || record.product_price}</span>
+                                  <span className="spec-val" style={{ color: '#d97706', fontWeight: 700 }}>₹{record.price}</span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 700, color: '#ff8c00', background: 'rgba(255,140,0,0.15)', padding: '1px 5px', borderRadius: 3 }}>
+                                    {Math.round(record.saleDiscountPercent || 0)}% OFF
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="spec-val">₹{price}</span>
+                              )}
                               <button
                                 type="button"
                                 className="btn-ghost"
@@ -371,7 +381,7 @@ export default function AdminDashboard({ records, onRecordsChange }) {
                                   fontWeight: 600,
                                 }}
                                 onClick={() => handleStartEditPrice(record)}
-                                title="Change price dynamically"
+                                title="Change base listing price dynamically"
                               >
                                 ✎ Edit
                               </button>

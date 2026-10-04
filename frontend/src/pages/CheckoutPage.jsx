@@ -168,7 +168,23 @@ export default function CheckoutPage() {
                       {item.artist && <p className="checkout-item__artist">{item.artist}</p>}
                       <p className="checkout-item__format">Digital Album · ZIP Download</p>
                     </div>
-                    <div className="checkout-item__price">₹{item.price}</div>
+                    <div className="checkout-item__price">
+                      {item.isOnSale ? (
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ textDecoration: 'line-through', opacity: 0.5, fontSize: '0.85em', marginRight: 6 }}>
+                            ₹{item.originalPrice}
+                          </span>
+                          <span style={{ color: 'var(--accent, #e8a87c)', fontWeight: 600 }}>
+                            ₹{item.price}
+                          </span>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#ff8c00' }}>
+                            {Math.round(item.saleDiscountPercent || 0)}% OFF
+                          </div>
+                        </div>
+                      ) : (
+                        `₹${item.price}`
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

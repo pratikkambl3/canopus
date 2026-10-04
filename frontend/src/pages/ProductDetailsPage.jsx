@@ -7,6 +7,7 @@ import {
   IconPlay, IconPause, IconPlayCircle, IconBag, IconCheck, formatTime,
 } from '../components/shared/Icons';
 import IntegratedPlayer from '../components/shared/IntegratedPlayer';
+import SaleCountdown from '../components/shared/SaleCountdown';
 
 function VinylDisc() {
   return (
@@ -176,9 +177,32 @@ export default function ProductDetailsPage() {
             {product.productDescription || product.description || 'Mastered high-fidelity audio release from the CANOPUS archives.'}
           </p>
 
+          {/* Price box */}
           <div className="product-hero__price-box">
-            <span className="product-hero__price-label">Price</span>
-            <span className="product-hero__price">₹{product.price}</span>
+            {product.isOnSale ? (
+              <>
+                {/* Sale banner */}
+                <div className="product-hero__sale-banner">
+                  <span className="product-hero__sale-badge">
+                    {Math.round(product.saleDiscountPercent)}% OFF
+                  </span>
+                  <span className="product-hero__sale-label">Limited-Time Offer</span>
+                  {product.saleEndsAt && (
+                    <SaleCountdown endsAt={product.saleEndsAt} className="product-hero__countdown" />
+                  )}
+                </div>
+                <span className="product-hero__price-label">Sale Price</span>
+                <div className="product-hero__sale-prices">
+                  <span className="product-hero__price-original">&#8377;{product.originalPrice}</span>
+                  <span className="product-hero__price product-hero__price--sale">&#8377;{product.price}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="product-hero__price-label">Price</span>
+                <span className="product-hero__price">&#8377;{product.price}</span>
+              </>
+            )}
           </div>
 
           <div className="product-hero__actions">
@@ -253,7 +277,15 @@ export default function ProductDetailsPage() {
               </dd>
 
               <dt className="product-specs__label">PRICE</dt>
-              <dd className="product-specs__value">₹{product.price}</dd>
+              {product.isOnSale ? (
+                <dd className="product-specs__value">
+                  <span style={{ textDecoration: 'line-through', opacity: 0.5, marginRight: 6 }}>&#8377;{product.originalPrice}</span>
+                  <strong style={{ color: 'var(--accent, #e8a87c)' }}>&#8377;{product.price}</strong>
+                  <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.7 }}>({Math.round(product.saleDiscountPercent)}% off)</span>
+                </dd>
+              ) : (
+                <dd className="product-specs__value">&#8377;{product.price}</dd>
+              )}
             </dl>
 
             <div className="product-specs__note">

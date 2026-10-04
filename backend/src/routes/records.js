@@ -56,6 +56,14 @@ const uploadFields = upload.fields([
 function rowToRecord(r, tracks = []) {
   const hasZip = Boolean(r.digital_file_path && fs.existsSync(r.digital_file_path));
 
+  // Sale price calculation
+  const basePrice     = Number(r.product_price != null ? r.product_price : 0);
+  const saleEnabled   = Boolean(r.sale_enabled);
+  const discountPct   = Math.min(100, Math.max(0, Number(r.sale_discount_percent || 0)));
+  const saleEndsAt    = r.sale_ends_at ? new Date(r.sale_ends_at).toISOString() : null;
+  const saleActive    = saleEnabled && discountPct > 0 && (saleEndsAt === null || new Date(saleEndsAt) > new Date());
+  const salePrice     = saleActive ? Math.round(basePrice * (1 - discountPct / 100) * 100) / 100 : basePrice;
+
   return {
     id:                 r.id,
     title:              r.title,
@@ -74,10 +82,20 @@ function rowToRecord(r, tracks = []) {
     is_product_only:     Boolean(r.is_product_only),
     productEnabled:     Boolean(r.product_enabled),
     product_enabled:    Boolean(r.product_enabled),
-    price:              Number(r.product_price != null ? r.product_price : 0),
-    product_price:      Number(r.product_price != null ? r.product_price : 0),
-    productPrice:       Number(r.product_price != null ? r.product_price : 0),
+    price:              saleActive ? salePrice : basePrice,
+    originalPrice:      basePrice,
+    product_price:      basePrice,
+    productPrice:       basePrice,
     productDescription: r.product_description || r.description || '',
+    // Sale fields
+    saleEnabled:        saleEnabled,
+    sale_enabled:       saleEnabled,
+    saleDiscountPercent: discountPct,
+    sale_discount_percent: discountPct,
+    saleEndsAt:         saleEndsAt,
+    sale_ends_at:       saleEndsAt,
+    isOnSale:           saleActive,
+    salePrice:          saleActive ? salePrice : null,
     // Preview fields
     previewEnabled:     r.preview_enabled !== false,
     previewTrackId:     r.preview_track_id || (tracks.length > 0 ? tracks[0].id : null),
